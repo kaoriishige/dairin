@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, Lock, QrCode, Settings, ShieldCheck, X } from 'lucide-react';
+import { AlertTriangle, Lock } from 'lucide-react';
 import { ChatPanel } from '../../components/ChatPanel/ChatPanel';
 import { SalesCharacter } from '../../components/SalesCharacter/SalesCharacter';
 import { ServiceMenu } from '../../components/ServiceMenu/ServiceMenu';
@@ -62,12 +62,11 @@ function safeSetSessionStorage(key: string, value: string) {
   }
 }
 
-export const DemoPage: React.FC<DemoPageProps> = ({ onOpenAdmin }) => {
+export const DemoPage: React.FC<DemoPageProps> = () => {
   const [passcode, setPasscode] = useState<string>(() => safeGetSessionStorage('dairin_demo_passcode'));
   const [passcodeInput, setPasscodeInput] = useState('');
   const [passcodeRequired, setPasscodeRequired] = useState(false);
   const [passcodeError, setPasscodeError] = useState<string | null>(null);
-  const [showQrModal, setShowQrModal] = useState(false);
 
   const [company, setCompany] = useState<CompanyInfo | null>(null);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -215,51 +214,6 @@ export const DemoPage: React.FC<DemoPageProps> = ({ onOpenAdmin }) => {
     setCurrentVowel('closed');
     setCharacterState('idle');
   }, []);
-
-  const handlePlaySampleVoice = useCallback(() => {
-    speech.stopListening();
-    void playerRef.current?.playStaticAudioUrl('/audio/dairin_voice_sample.mp3', {
-      onStart: () => {
-        setIsSpeaking(true);
-        setCharacterState('speaking');
-      },
-      onAudioLevel: (lvl, vowelShape) => {
-        setAudioLevel(lvl);
-        setCurrentVowel(vowelShape ?? 'closed');
-      },
-      onEnd: () => {
-        setIsSpeaking(false);
-        setAudioLevel(0);
-        setCurrentVowel('closed');
-        setCharacterState('idle');
-      },
-      onFallbackToText: (reason) => {
-        setIsSpeaking(false);
-        setAudioLevel(0);
-        setCurrentVowel('closed');
-        setCharacterState('idle');
-        setNoticeMessage(reason);
-      },
-    });
-  }, [speech]);
-
-  const handlePlayTestGreeting = useCallback(() => {
-    speech.stopListening();
-    playerRef.current?.stop();
-    playerRef.current?.unlockAudioForMobile();
-    if (!sessionStarted) {
-      setSessionStarted(true);
-    }
-    const testMsg: ChatMessage = {
-      id: `msg-test-${Date.now()}`,
-      role: 'assistant',
-      displayText: INITIAL_GREETING,
-      speechText: INITIAL_GREETING_SPEECH,
-      createdAt: new Date().toISOString(),
-    };
-    setMessages((prev) => (prev.length === 0 ? [testMsg] : [...prev, testMsg]));
-    void playAssistantVoice(INITIAL_GREETING_SPEECH, 'speaking');
-  }, [playAssistantVoice, sessionStarted, speech]);
 
   const handleSendMessage = useCallback(
     async (rawText: string) => {
@@ -478,53 +432,20 @@ export const DemoPage: React.FC<DemoPageProps> = ({ onOpenAdmin }) => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-blue-50/40 flex flex-col">
-      {/* 画面最上部：必須表記 */}
-      <header className="bg-white border-b border-blue-100 shadow-2xs sticky top-0 z-20">
-        <div className="bg-blue-800 text-white text-center py-1.5 px-3">
-          <p className="text-xs md:text-sm font-bold tracking-wider">テスト用デモページ</p>
-          <p className="text-[11px] md:text-xs text-blue-100">
-            AIキャラクターが、お車選びや車検・整備のご相談を承ります
-          </p>
-        </div>
-
-        <div className="max-w-7xl mx-auto px-4 py-2.5 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <ShieldCheck className="w-5 h-5 text-blue-700 shrink-0" />
-            <div>
-              <h1 className="text-sm md:text-base font-extrabold text-slate-900 leading-tight">
-                オートギャラリーダイリン AIキャラクターオンライン営業
-              </h1>
-              <p className="text-[11px] text-slate-500">
-                株式会社ジェイ・ピー（栃木県那須塩原市）公式情報連携デモ
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={() => setShowQrModal(true)}
-              className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-700 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg border border-blue-200 cursor-pointer shrink-0"
-            >
-              <QrCode className="w-3.5 h-3.5" />
-              スマホで開く
-            </button>
-            <button
-              type="button"
-              onClick={onOpenAdmin}
-              className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-blue-700 bg-slate-100 hover:bg-blue-50 px-3 py-1.5 rounded-lg border border-slate-200 cursor-pointer shrink-0"
-            >
-              <Settings className="w-3.5 h-3.5" />
-              管理画面
-            </button>
-          </div>
-        </div>
+      {/* 画面最上部：ダイリン短文説明を統合したスリムヘッダー */}
+      <header className="bg-blue-800 text-white text-center py-2 px-3 shadow-xs sticky top-0 z-20">
+        <h1 className="text-xs md:text-sm font-bold tracking-wide">
+          オートギャラリーダイリン AI営業デモ（テスト用）
+        </h1>
+        <p className="text-[11px] md:text-xs text-blue-100 mt-0.5">
+          株式会社ジェイ・ピー｜お車選び・車検・整備のご相談をAIが承ります
+        </p>
       </header>
 
-      {/* メインエリア：PCは左キャラクター・右会話 / スマホは上キャラクター・中央メニュー＆会話 */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-3 md:px-6 py-4 grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
+      {/* メインエリア：スマホでは「キャラ → 会話を始める →（開始後にチャット欄＆相談メニュー）」の順 */}
+      <main className="flex-1 max-w-6xl w-full mx-auto px-3 md:px-6 py-3 md:py-4 grid grid-cols-1 lg:grid-cols-12 gap-3 md:gap-4 items-start">
         {/* 左側（スマホでは上部）：女性キャラクター表示エリア */}
-        <div className="lg:col-span-5 xl:col-span-4 lg:sticky lg:top-28 lg:self-start">
+        <div className="lg:col-span-5 xl:col-span-4 lg:sticky lg:top-16">
           <SalesCharacter
             state={speech.isListening ? 'listening' : characterState}
             audioLevel={audioLevel}
@@ -536,61 +457,12 @@ export const DemoPage: React.FC<DemoPageProps> = ({ onOpenAdmin }) => {
               playerRef.current?.setVoiceChoice(choice);
             }}
             subtitle={latestAssistantSubtitle}
-            onPlaySampleVoice={handlePlaySampleVoice}
-            onPlayTestGreeting={handlePlayTestGreeting}
           />
         </div>
 
-        {/* 右側（スマホでは中央〜下部）：営業メニュー・会話・車両紹介・操作パネル */}
-        <div className="lg:col-span-7 xl:col-span-8 flex flex-col gap-3 min-h-[540px]">
-          {/* 相談メニュー */}
-          <section aria-label="ご相談メニュー" className="bg-blue-50/70 border border-blue-100 rounded-2xl p-3">
-            <p className="text-xs font-bold text-blue-900 mb-2">
-              ご希望のご相談内容をお選びください（そのまま会話が始まります）
-            </p>
-            <ServiceMenu
-              onSelect={(prompt) => void handleSendMessage(prompt)}
-              disabled={isThinking}
-            />
-          </section>
-
-          {/* 音声認識エラー・システム通知 */}
-          {(speech.errorMessage || noticeMessage) && (
-            <div className="bg-amber-50 border border-amber-300 text-amber-900 rounded-xl px-3.5 py-2.5 text-xs md:text-sm flex items-start gap-2">
-              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-              <div className="flex-1">
-                {speech.errorMessage && <p>{speech.errorMessage}</p>}
-                {noticeMessage && <p>{noticeMessage}</p>}
-              </div>
-            </div>
-          )}
-
-          {/* 会話・車両紹介エリア */}
-          <section
-            aria-label="会話と車両紹介"
-            className="flex-1 bg-slate-50/80 rounded-2xl border border-slate-200 p-3 md:p-4 flex flex-col min-h-[300px] max-h-[58vh] lg:max-h-[54vh]"
-          >
-            {messages.length === 0 ? (
-              <div className="flex-1 flex flex-col items-center justify-center text-center text-slate-500 p-4 space-y-2">
-                <p className="text-sm md:text-base font-semibold text-slate-700">
-                  「会話を始める」または上のメニューからご相談ください
-                </p>
-                <p className="text-xs max-w-md leading-relaxed">
-                  例：「100万円くらいで軽自動車を探しています」「子どもが2人いるのでスライドドアの車を探しています」「軽自動車の車検はいくらですか？」
-                </p>
-              </div>
-            ) : (
-              <ChatPanel
-                messages={messages}
-                vehiclesById={vehiclesById}
-                company={company}
-                isThinking={isThinking}
-                interimTranscript={speech.interimTranscript}
-              />
-            )}
-          </section>
-
-          {/* 下部：音声操作・文字入力 */}
+        {/* 右側（スマホではキャラクターのすぐ下）：会話を始めるボタン＆会話開始後のチャット欄 */}
+        <div className="lg:col-span-7 xl:col-span-8 flex flex-col gap-3">
+          {/* キャラのすぐ下に「会話を始める」（開始後は音声・文字入力操作）を配置 */}
           <VoiceControls
             sessionStarted={sessionStarted}
             isListening={speech.isListening}
@@ -612,56 +484,48 @@ export const DemoPage: React.FC<DemoPageProps> = ({ onOpenAdmin }) => {
             onToggleSubtitle={() => setShowSubtitle((s) => !s)}
             onSendText={(txt) => void handleSendMessage(txt)}
           />
+
+          {/* 音声認識エラー・システム通知 */}
+          {(speech.errorMessage || noticeMessage) && (
+            <div className="bg-amber-50 border border-amber-300 text-amber-900 rounded-xl px-3.5 py-2.5 text-xs md:text-sm flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                {speech.errorMessage && <p>{speech.errorMessage}</p>}
+                {noticeMessage && <p>{noticeMessage}</p>}
+              </div>
+            </div>
+          )}
+
+          {/* 会話を始めた後にのみ、チャット欄と「ご希望のご相談内容（メニュー）」を表示 */}
+          {sessionStarted && (
+            <section
+              aria-label="会話と車両紹介"
+              className="bg-white rounded-2xl border border-slate-200 shadow-xs p-3 md:p-4 flex flex-col gap-3"
+            >
+              {/* チャット欄の中に配置した「ご希望のご相談内容をお選びください」 */}
+              <div className="bg-blue-50/70 border border-blue-100 rounded-xl p-2.5">
+                <p className="text-xs font-bold text-blue-900 mb-2">
+                  ご希望のご相談内容をお選びください（タップでご相談できます）
+                </p>
+                <ServiceMenu
+                  onSelect={(prompt) => void handleSendMessage(prompt)}
+                  disabled={isThinking}
+                />
+              </div>
+
+              <div className="flex flex-col min-h-[240px] max-h-[55vh]">
+                <ChatPanel
+                  messages={messages}
+                  vehiclesById={vehiclesById}
+                  company={company}
+                  isThinking={isThinking}
+                  interimTranscript={speech.interimTranscript}
+                />
+              </div>
+            </section>
+          )}
         </div>
       </main>
-
-      {/* スマホ用QRコードモーダル */}
-      {showQrModal && (
-        <div
-          className="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4"
-          onClick={() => setShowQrModal(false)}
-        >
-          <div
-            className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-slate-200 space-y-4 text-center"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between">
-              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <QrCode className="w-5 h-5 text-blue-700" />
-                スマートフォンで開く
-              </h2>
-              <button
-                type="button"
-                onClick={() => setShowQrModal(false)}
-                className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 cursor-pointer"
-                aria-label="閉じる"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <p className="text-xs text-slate-600 leading-relaxed">
-              スマートフォンの標準カメラで下のQRコードを読み取ると、スマホ画面ですぐに開けます。
-            </p>
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex justify-center">
-              <img
-                src="/images/mobile_qr.png"
-                alt="スマホアクセス用QRコード"
-                className="w-48 h-48 object-contain"
-              />
-            </div>
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-2.5 text-xs font-mono text-blue-900 break-all select-all">
-              https://dairin-ai-sales-demo.netlify.app
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowQrModal(false)}
-              className="w-full bg-blue-700 hover:bg-blue-800 text-white font-bold py-2.5 rounded-xl text-sm cursor-pointer"
-            >
-              閉じる
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

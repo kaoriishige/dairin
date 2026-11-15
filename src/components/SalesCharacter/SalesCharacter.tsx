@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Mic, Sparkles, Volume2, Car, Clock, MessageSquareHeart } from 'lucide-react';
+import { Mic, Sparkles, Volume2, Car, Clock } from 'lucide-react';
 import type { CharacterState } from '../../types';
 import type {
   FemaleVoiceChoice,
@@ -15,8 +15,6 @@ export interface SalesCharacterProps {
   voiceChoice?: FemaleVoiceChoice;
   onChangeVoiceChoice?: (choice: FemaleVoiceChoice) => void;
   subtitle?: string;
-  onPlaySampleVoice?: () => void;
-  onPlayTestGreeting?: () => void;
 }
 
 const STATE_CONFIG: Record<
@@ -25,7 +23,7 @@ const STATE_CONFIG: Record<
 > = {
   idle: {
     label: '待機中',
-    subLabel: 'いつでも話しかけてください',
+    subLabel: '下の「会話を始める」からご相談ください',
     badgeClass: 'bg-slate-100 text-slate-700 border-slate-200',
     ringClass: 'ring-blue-100',
     Icon: Clock,
@@ -66,8 +64,6 @@ export const SalesCharacter: React.FC<SalesCharacterProps> = ({
   voiceChoice = 'fn6Wir86vS59qP6PheHG',
   onChangeVoiceChoice,
   subtitle,
-  onPlaySampleVoice,
-  onPlayTestGreeting,
 }) => {
   const cfg = STATE_CONFIG[state];
   const StatusIcon = cfg.Icon;
@@ -137,31 +133,31 @@ export const SalesCharacter: React.FC<SalesCharacterProps> = ({
   return (
     <section
       aria-label="ダイリン AI営業アシスタント"
-      className="flex flex-col items-center bg-white rounded-2xl border border-blue-100 shadow-sm p-3 sm:p-4 md:p-5 h-full justify-between"
+      className="flex flex-col items-center bg-white rounded-2xl border border-blue-100 shadow-sm p-3 sm:p-4"
     >
       {/* 上部ステータス */}
-      <div className="w-full flex items-center justify-between gap-2 mb-2 sm:mb-3">
+      <div className="w-full flex items-center justify-between gap-2 mb-2">
         <div>
-          <p className="text-[11px] sm:text-xs font-semibold tracking-wide text-blue-700">
+          <p className="text-[11px] font-semibold tracking-wide text-blue-700">
             株式会社ジェイ・ピー
           </p>
-          <h2 className="text-sm sm:text-base md:text-lg font-bold text-slate-900">
+          <h2 className="text-sm sm:text-base font-bold text-slate-900">
             ダイリン AI営業アシスタント
           </h2>
         </div>
         <div
-          className={`inline-flex items-center gap-1.5 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full text-xs sm:text-sm font-semibold border ${cfg.badgeClass}`}
+          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${cfg.badgeClass}`}
         >
-          <StatusIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+          <StatusIcon className="w-3.5 h-3.5 shrink-0" />
           <span>{cfg.label}</span>
         </div>
       </div>
 
-      {/* キャラクター本体表示エリア（口を閉じた新画像ベース＋待機/発話MP4切り替え） */}
+      {/* キャラクター本体表示エリア（右上または右下に小さな声選択プルダウンのみ配置） */}
       <div
-        className={`relative w-full max-w-[260px] sm:max-w-[320px] md:max-w-[380px] aspect-[4/4.2] rounded-2xl overflow-hidden bg-white border border-blue-100 ring-4 transition-all duration-300 ${cfg.ringClass}`}
+        className={`relative w-full max-w-[240px] sm:max-w-[300px] md:max-w-[360px] aspect-[4/4.1] rounded-2xl overflow-hidden bg-white border border-blue-100 ring-4 transition-all duration-300 ${cfg.ringClass}`}
       >
-        {/* ベース静止画（いただいた口を閉じた正面画像） */}
+        {/* ベース静止画 */}
         <img
           src="/images/dairin_ai_sales_character.png?v=4"
           alt="ダイリン AI営業アシスタント（女性営業キャラクター）"
@@ -169,7 +165,7 @@ export const SalesCharacter: React.FC<SalesCharacterProps> = ({
           draggable={false}
         />
 
-        {/* ① 待機・聞き取り中ループ動画 (character_idle.mp4：口を閉じてまばたき・呼吸) */}
+        {/* ① 待機・聞き取り中ループ動画 */}
         <video
           ref={idleVideoRef}
           src="/videos/character_idle.mp4?v=4"
@@ -187,7 +183,7 @@ export const SalesCharacter: React.FC<SalesCharacterProps> = ({
           }`}
         />
 
-        {/* ② 発話・車両紹介中ループ動画 (character_speaking.mp4：口を開閉して会話) */}
+        {/* ② 発話・車両紹介中ループ動画 */}
         <video
           ref={speakingVideoRef}
           src="/videos/character_speaking.mp4?v=6"
@@ -205,18 +201,33 @@ export const SalesCharacter: React.FC<SalesCharacterProps> = ({
           }`}
         />
 
+        {/* キャラクター枠右上の小さな声切り替えプルダウン */}
+        {onChangeVoiceChoice && (
+          <div className="absolute top-2 right-2 z-10">
+            <select
+              id="female-voice-select"
+              aria-label="女性の声を選択"
+              value={voiceChoice}
+              onChange={(e) => onChangeVoiceChoice(e.target.value as FemaleVoiceChoice)}
+              className="rounded-lg border border-blue-200/90 bg-white/90 backdrop-blur-xs px-2 py-1 text-[11px] font-semibold text-slate-700 shadow-xs focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+            >
+              <option value="fn6Wir86vS59qP6PheHG">声①（標準）</option>
+              <option value="U4eWfk1iaCTV9hveteMg">声②</option>
+              <option value="tmmztcupA9Eu81ix80hq">声③</option>
+            </select>
+          </div>
+        )}
+
         {/* 発話中インジケータ */}
         {isSpeakingLike && (
           <div
             aria-hidden="true"
-            className="absolute bottom-2.5 right-2.5 flex items-center gap-2 bg-white/90 backdrop-blur-sm px-2.5 py-1.5 rounded-full border border-blue-200 shadow-sm z-10"
+            className="absolute bottom-2 right-2 flex items-center gap-1.5 bg-white/90 backdrop-blur-xs px-2.5 py-1 rounded-full border border-blue-200 shadow-xs z-10"
           >
-            <span className="text-[11px] font-bold text-blue-800 bg-blue-50 px-1.5 py-0.5 rounded">
-              女性ボイスで会話中
-            </span>
-            <div className="flex items-end gap-1">
+            <span className="text-[11px] font-bold text-blue-800">会話中</span>
+            <div className="flex items-end gap-0.5">
               {[0.4, 0.85, 0.6, 1.0, 0.5].map((mult, idx) => {
-                const barHeight = Math.max(5, Math.round(5 + Math.max(0.35, clampedLevel) * 13 * mult));
+                const barHeight = Math.max(4, Math.round(4 + Math.max(0.35, clampedLevel) * 11 * mult));
                 return (
                   <span
                     key={idx}
@@ -231,7 +242,7 @@ export const SalesCharacter: React.FC<SalesCharacterProps> = ({
 
         {/* 聞き取り中インジケータ */}
         {state === 'listening' && (
-          <div className="absolute bottom-2.5 left-2.5 flex items-center gap-2 bg-emerald-600 text-white px-3 py-1 rounded-full text-xs font-semibold shadow-sm z-10">
+          <div className="absolute bottom-2 left-2 flex items-center gap-1.5 bg-emerald-600 text-white px-2.5 py-1 rounded-full text-xs font-semibold shadow-xs z-10">
             <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
             <span>音声を聞き取り中</span>
           </div>
@@ -239,77 +250,19 @@ export const SalesCharacter: React.FC<SalesCharacterProps> = ({
 
         {/* 思考中インジケータ */}
         {state === 'thinking' && (
-          <div className="absolute bottom-2.5 left-2.5 flex items-center gap-2 bg-amber-500 text-white px-3 py-1 rounded-full text-xs font-semibold shadow-sm z-10">
+          <div className="absolute bottom-2 left-2 flex items-center gap-1.5 bg-amber-500 text-white px-2.5 py-1 rounded-full text-xs font-semibold shadow-xs z-10">
             <span className="w-2 h-2 rounded-full bg-white animate-ping" />
             <span>ご案内を準備中…</span>
           </div>
         )}
       </div>
 
-      {/* 下部字幕 / 女性ボイス選択 / テストボタン */}
-      <div className="w-full mt-2.5 sm:mt-3 space-y-2">
-        {subtitle ? (
-          <div className="bg-blue-50/80 border border-blue-100 rounded-xl px-3 py-2 sm:px-3.5 sm:py-2.5 text-xs sm:text-sm md:text-base text-slate-800 leading-relaxed min-h-[2.75rem]">
-            {subtitle}
-          </div>
-        ) : (
-          <p className="text-center text-xs sm:text-sm text-slate-500 py-1.5">
-            {cfg.subLabel}
-          </p>
-        )}
-
-        {/* 女性の声を選択できるセレクタ */}
-        {onChangeVoiceChoice && (
-          <div className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 flex flex-col gap-1">
-            <label
-              htmlFor="female-voice-select"
-              className="text-[11px] font-bold text-slate-700 flex items-center gap-1"
-            >
-              <Volume2 className="w-3.5 h-3.5 text-blue-600" />
-              <span>女性の声を選択：</span>
-            </label>
-            <select
-              id="female-voice-select"
-              value={voiceChoice}
-              onChange={(e) => onChangeVoiceChoice(e.target.value as FemaleVoiceChoice)}
-              className="w-full rounded-lg border border-blue-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="fn6Wir86vS59qP6PheHG">
-                ElevenLabs 女性ボイス①（ID: fn6Wir86vS59qP6PheHG）
-              </option>
-              <option value="U4eWfk1iaCTV9hveteMg">
-                ElevenLabs 女性ボイス②（ID: U4eWfk1iaCTV9hveteMg）
-              </option>
-              <option value="tmmztcupA9Eu81ix80hq">
-                ElevenLabs 女性ボイス③（ID: tmmztcupA9Eu81ix80hq）
-              </option>
-            </select>
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-          {onPlayTestGreeting && (
-            <button
-              type="button"
-              onClick={onPlayTestGreeting}
-              className="w-full inline-flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl py-2.5 sm:py-2 px-3 text-xs font-bold transition-colors cursor-pointer shadow-2xs"
-            >
-              <MessageSquareHeart className="w-4 h-4 shrink-0" />
-              <span>営業挨拶セリフを再生</span>
-            </button>
-          )}
-          {onPlaySampleVoice && (
-            <button
-              type="button"
-              onClick={onPlaySampleVoice}
-              className="w-full inline-flex items-center justify-center gap-1.5 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 rounded-xl py-2.5 sm:py-2 px-3 text-xs font-bold transition-colors cursor-pointer"
-            >
-              <Volume2 className="w-4 h-4 text-blue-700 shrink-0" />
-              <span>指定女性サンプル再生</span>
-            </button>
-          )}
+      {/* 下部字幕（会話中のみコンパクトに表示） */}
+      {subtitle && (
+        <div className="w-full mt-2 bg-blue-50/80 border border-blue-100 rounded-xl px-3 py-2 text-xs sm:text-sm text-slate-800 leading-relaxed">
+          {subtitle}
         </div>
-      </div>
+      )}
     </section>
   );
 };
