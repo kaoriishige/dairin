@@ -63,7 +63,6 @@ const STATE_CONFIG: Record<
 export const SalesCharacter: React.FC<SalesCharacterProps> = ({
   state,
   isSpeaking = false,
-  audioLevel = 0,
   voiceChoice = 'cartesia-suzuka-bright',
   onChangeVoiceChoice,
   subtitle,
@@ -77,12 +76,11 @@ export const SalesCharacter: React.FC<SalesCharacterProps> = ({
 
   const idleVideoRef = useRef<HTMLVideoElement | null>(null);
   const speakingVideoRef = useRef<HTMLVideoElement | null>(null);
-  const [idleVideoReady, setIdleVideoReady] = useState(false);
-  const [speakingVideoReady, setSpeakingVideoReady] = useState(false);
+  const [idleVideoPlaying, setIdleVideoPlaying] = useState(false);
+  const [speakingVideoPlaying, setSpeakingVideoPlaying] = useState(false);
 
   // 口パク動画は実際に音声が再生中（isSpeaking === true）の間だけ再生・表示する
   const activeSpeaking = Boolean(isSpeaking);
-  const clampedLevel = Math.min(1, Math.max(0, audioLevel));
 
   // iOS Safari / Android Chrome 向けに video 要素の muted / playsInline 属性を確実に適用
   useEffect(() => {
@@ -91,9 +89,13 @@ export const SalesCharacter: React.FC<SalesCharacterProps> = ({
       vid.muted = true;
       vid.defaultMuted = true;
       vid.playsInline = true;
+      vid.controls = false;
+      vid.disablePictureInPicture = true;
       vid.setAttribute('muted', '');
       vid.setAttribute('playsinline', '');
       vid.setAttribute('webkit-playsinline', '');
+      vid.setAttribute('disablepictureinpicture', '');
+      vid.setAttribute('disableremoteplayback', '');
     };
 
     setupMobileVideo(idleVideoRef.current);
@@ -105,6 +107,17 @@ export const SalesCharacter: React.FC<SalesCharacterProps> = ({
       if (idleVideoRef.current && idleVideoRef.current.paused) {
         idleVideoRef.current.play().catch(() => {});
       }
+      // 発話用動画もユーザー操作タイミングで無音アンロックしておく（再生マーク防止）
+      if (speakingVideoRef.current && speakingVideoRef.current.paused && !activeSpeaking) {
+        speakingVideoRef.current
+          .play()
+          .then(() => {
+            if (!activeSpeaking && speakingVideoRef.current) {
+              speakingVideoRef.current.pause();
+            }
+          })
+          .catch(() => {});
+      }
     };
     window.addEventListener('touchstart', unlockOnTouch, { passive: true });
     window.addEventListener('click', unlockOnTouch, { passive: true });
@@ -112,7 +125,7 @@ export const SalesCharacter: React.FC<SalesCharacterProps> = ({
       window.removeEventListener('touchstart', unlockOnTouch);
       window.removeEventListener('click', unlockOnTouch);
     };
-  }, []);
+  }, [activeSpeaking]);
 
   // 音声再生状態（activeSpeaking）に応じて待機動画(MP4)と発話動画(MP4)を厳密に切り替え
   useEffect(() => {
@@ -126,8 +139,11 @@ export const SalesCharacter: React.FC<SalesCharacterProps> = ({
     if (speakVid) {
       if (activeSpeaking) {
         speakVid.muted = true;
-        speakVid.play().catch(() => {});
+        speakVid.play().catch(() => {
+          setSpeakingVideoPlaying(false);
+        });
       } else {
+        setSpeakingVideoPlaying(false);
         speakVid.pause();
         try {
           speakVid.currentTime = 0;
@@ -177,17 +193,17 @@ export const SalesCharacter: React.FC<SalesCharacterProps> = ({
         <video
           ref={idleVideoRef}
           src="/videos/character_idle.mp4?v=4"
-          poster="/images/dairin_ai_sales_character.png?v=4"
           autoPlay
           loop
           muted
           playsInline
           preload="auto"
-          onCanPlay={() => setIdleVideoReady(true)}
-          onPlaying={() => setIdleVideoReady(true)}
+          disablePictureInPicture
+          onPlaying={() => setIdleVideoPlaying(true)}
+          onPause={() => setIdleVideoPlaying(false)}
           aria-label="ダイリン AI営業キャラクター 待機アニメーション動画"
-          className={`absolute inset-0 w-full h-full object-contain object-bottom select-none pointer-events-none transition-opacity duration-150 ${
-            idleVideoReady && !activeSpeaking ? 'opacity-100' : 'opacity-0'
+          className={`character-loop-video absolute inset-0 w-full h-full object-contain object-bottom select-none pointer-events-none transition-opacity duration-150 ${
+            idleVideoPlaying && !activeSpeaking ? 'opacity-100' : 'opacity-0'
           }`}
         />
 
@@ -195,41 +211,20 @@ export const SalesCharacter: React.FC<SalesCharacterProps> = ({
         <video
           ref={speakingVideoRef}
           src="/videos/character_speaking.mp4?v=6"
-          poster="/images/dairin_ai_sales_character.png?v=4"
-          autoPlay
           loop
           muted
           playsInline
           preload="auto"
-          onCanPlay={() => setSpeakingVideoReady(true)}
-          onPlaying={() => setSpeakingVideoReady(true)}
+          disablePictureInPicture
+          onPlaying={() => {
+            if (activeSpeaking) setSpeakingVideoPlaying(true);
+          }}
+          onPause={() => setSpeakingVideoPlaying(false)}
           aria-label="ダイリン AI営業キャラクター 会話アニメーション動画"
-          className={`absolute inset-0 w-full h-full object-contain object-bottom select-none pointer-events-none transition-opacity duration-150 ${
-            speakingVideoReady && activeSpeaking ? 'opacity-100' : 'opacity-0'
+          className={`character-loop-video absolute inset-0 w-full h-full object-contain object-bottom select-none pointer-events-none transition-opacity duration-150 ${
+            speakingVideoPlaying && activeSpeaking ? 'opacity-100' : 'opacity-0'
           }`}
         />
-
-        {/* 発話中インジケータ */}
-        {activeSpeaking && (
-          <div
-            aria-hidden="true"
-            className="absolute bottom-2 right-2 flex items-center gap-1.5 bg-white/90 backdrop-blur-xs px-2.5 py-1 rounded-full border border-blue-200 shadow-xs z-10"
-          >
-            <span className="text-[11px] font-bold text-blue-800">お話中</span>
-            <div className="flex items-end gap-0.5">
-              {[0.4, 0.85, 0.6, 1.0, 0.5].map((mult, idx) => {
-                const barHeight = Math.max(4, Math.round(4 + Math.max(0.35, clampedLevel) * 11 * mult));
-                return (
-                  <span
-                    key={idx}
-                    className="w-1 rounded-full bg-blue-600 transition-all duration-75"
-                    style={{ height: `${barHeight}px` }}
-                  />
-                );
-              })}
-            </div>
-          </div>
-        )}
 
         {/* 聞き取り中インジケータ */}
         {effectiveState === 'listening' && (

@@ -12,3 +12,15 @@
 .animate-gentle-float {
   animation: gentleFloat 4s ease-in-out infinite;
 }
+
+/* モバイル・iOS Safari等でキャラクター動画上にブラウザ標準の再生マーク(▶)が出ないように非表示化 */
+video.character-loop-video::-webkit-media-controls,
+video.character-loop-video::-webkit-media-controls-panel,
+video.character-loop-video::-webkit-media-controls-play-button,
+video.character-loop-video::-webkit-media-controls-start-playback-button,
+video.character-loop-video::-webkit-media-controls-overlay-play-button {
+  display: none !important;
+  -webkit-appearance: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
