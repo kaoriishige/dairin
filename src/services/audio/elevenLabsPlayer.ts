@@ -1,24 +1,11 @@
-import { normalizeTextForSpeech, splitIntoSpeechChunks } from './speechTextNormalizer';
+import { splitIntoSpeechChunks } from './speechTextNormalizer';
 
 export type MouthVowelShape = 'closed' | 'a' | 'i' | 'u' | 'e' | 'o';
 
 export type FemaleVoiceChoice =
-  | 'voicevox_mochiko'
-  | 'voicevox_mochiko_happy'
-  | 'voicevox_metan'
-  | 'elevenlabs_female';
-
-const VOICEVOX_SPEAKER_IDS: Record<string, number> = {
-  voicevox_mochiko: 20, // もち子さん（ノーマル）
-  voicevox_mochiko_happy: 79, // もち子さん（喜び）
-  voicevox_metan: 2, // 四国めたん（ノーマル）
-};
-
-const STATIC_GREETING_URLS: Record<string, string> = {
-  voicevox_mochiko: '/audio/greeting_mochiko.mp3?v=1',
-  voicevox_mochiko_happy: '/audio/greeting_mochiko_happy.mp3?v=1',
-  voicevox_metan: '/audio/greeting_metan.mp3?v=1',
-};
+  | 'fn6Wir86vS59qP6PheHG'
+  | 'U4eWfk1iaCTV9hveteMg'
+  | 'tmmztcupA9Eu81ix80hq';
 
 export interface LiveVoiceMetrics {
   level: number;
@@ -96,7 +83,7 @@ export class ElevenLabsStreamingPlayer {
   private activeObjectUrl: string | null = null;
   private rafId: number | null = null;
   private volume = 0.9;
-  private voiceChoice: FemaleVoiceChoice = 'voicevox_mochiko';
+  private voiceChoice: FemaleVoiceChoice = 'fn6Wir86vS59qP6PheHG';
   private isPlayingFlag = false;
   private playbackToken = 0;
 
@@ -252,54 +239,16 @@ export class ElevenLabsStreamingPlayer {
     }
   }
 
-  private async fetchVoicevoxStreamUrlDirect(
-    speakerId: number,
-    text: string,
-    signal: AbortSignal
-  ): Promise<string | null> {
-    const normalized = normalizeTextForSpeech(text);
-    const apiUrl = `https://api.tts.quest/v3/voicevox/synthesis?speaker=${speakerId}&text=${encodeURIComponent(normalized)}`;
-
-    for (let attempt = 0; attempt < 3; attempt++) {
-      const res = await fetch(apiUrl, { signal });
-      const data = (await res.json().catch(() => ({}))) as {
-        success?: boolean;
-        retryAfter?: number;
-        mp3StreamingUrl?: string;
-      };
-      if (data.mp3StreamingUrl) {
-        return data.mp3StreamingUrl;
-      }
-      if (data.retryAfter && attempt < 2) {
-        await new Promise((r) => setTimeout(r, Math.min(6500, (data.retryAfter! + 1) * 1000)));
-        continue;
-      }
-      break;
-    }
-    return null;
-  }
-
   public async speak(
     text: string,
     passcode: string,
     callbacks: TtsPlaybackCallbacks = {}
   ): Promise<boolean> {
-    // 1. 初回挨拶セリフかつVOICEVOX（もち子さん/あいえるたん）の場合は事前生成MP3を即時再生
-    const staticGreetingUrl = STATIC_GREETING_URLS[this.voiceChoice];
-    if (
-      staticGreetingUrl &&
-      text.includes('オートギャラリー') &&
-      text.includes('どのようなお車')
-    ) {
-      return this.playStaticAudioUrl(staticGreetingUrl, callbacks);
-    }
-
     this.stop();
     this.unlockAudioForMobile();
 
     const myToken = this.playbackToken;
-    // VOICEVOX Web API のレート制限を避けるため、1回の返答（最大260文字）を1チャンクにまとめる
-    const chunks = splitIntoSpeechChunks(text, 260);
+    const chunks = splitIntoSpeechChunks(text, 220);
     if (chunks.length === 0) {
       callbacks.onEnd?.();
       return false;
@@ -307,39 +256,9 @@ export class ElevenLabsStreamingPlayer {
 
     this.abortController = new AbortController();
     const signal = this.abortController.signal;
-    const speakerId = VOICEVOX_SPEAKER_IDS[this.voiceChoice];
 
     try {
-      let startedCallbackFired = false;
-
-      for (const chunk of chunks) {
-        if (myToken !== this.playbackToken) return false;
-
-        // VOICEVOX（もち子さん・あいえるたん）はブラウザから直接ストリーミングURLを取得して再生
-        if (speakerId !== undefined) {
-          const streamUrl = await this.fetchVoicevoxStreamUrlDirect(speakerId, chunk, signal);
-          if (myToken !== this.playbackToken) return false;
-
-          if (streamUrl) {
-            if (!startedCallbackFired) {
-              startedCallbackFired = true;
-              this.isPlayingFlag = true;
-              callbacks.onStart?.();
-            }
-            const audio = this.getOrCreateAudioElement();
-            await new Promise<void>((resolve, reject) => {
-              audio.src = streamUrl;
-              audio.volume = this.volume;
-              audio.onended = () => resolve();
-              audio.onerror = () => reject(new Error('VOICEVOX音声の再生に失敗しました。'));
-              this.startLevelPulse(callbacks.onAudioLevel);
-              audio.play().catch(reject);
-            });
-            continue;
-          }
-        }
-
-        // サーバー経由 (/api/tts)
+      const chunkBlobPromises = chunks.map(async (chunk) => {
         const res = await fetch('/api/tts', {
           method: 'POST',
           headers: {
@@ -355,8 +274,14 @@ export class ElevenLabsStreamingPlayer {
             errData.error || '音声合成が利用できないため、文字チャットで継続します。'
           );
         }
+        return res.blob();
+      });
 
-        const blob = await res.blob();
+      let startedCallbackFired = false;
+
+      for (const blobPromise of chunkBlobPromises) {
+        if (myToken !== this.playbackToken) return false;
+        const blob = await blobPromise;
         if (myToken !== this.playbackToken) return false;
 
         if (!startedCallbackFired) {

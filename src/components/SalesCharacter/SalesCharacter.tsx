@@ -63,7 +63,7 @@ const STATE_CONFIG: Record<
 export const SalesCharacter: React.FC<SalesCharacterProps> = ({
   state,
   audioLevel = 0,
-  voiceChoice = 'voicevox_mochiko',
+  voiceChoice = 'fn6Wir86vS59qP6PheHG',
   onChangeVoiceChoice,
   subtitle,
   onPlaySampleVoice,
@@ -274,17 +274,14 @@ export const SalesCharacter: React.FC<SalesCharacterProps> = ({
               onChange={(e) => onChangeVoiceChoice(e.target.value as FemaleVoiceChoice)}
               className="w-full rounded-lg border border-blue-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="voicevox_mochiko">
-                VOICEVOX：もち子さん（ノーマル・丁寧な女性ボイス）
+              <option value="fn6Wir86vS59qP6PheHG">
+                ElevenLabs 女性ボイス①（ID: fn6Wir86vS59qP6PheHG）
               </option>
-              <option value="voicevox_mochiko_happy">
-                VOICEVOX：もち子さん（喜び・明るい接客ボイス）
+              <option value="U4eWfk1iaCTV9hveteMg">
+                ElevenLabs 女性ボイス②（ID: U4eWfk1iaCTV9hveteMg）
               </option>
-              <option value="voicevox_metan">
-                VOICEVOX：四国めたん（はっきり聞き取りやすい女性ボイス）
-              </option>
-              <option value="elevenlabs_female">
-                ElevenLabs：専用女性ボイス（tmmztcupA9Eu81ix80hq）
+              <option value="tmmztcupA9Eu81ix80hq">
+                ElevenLabs 女性ボイス③（ID: tmmztcupA9Eu81ix80hq）
               </option>
             </select>
           </div>

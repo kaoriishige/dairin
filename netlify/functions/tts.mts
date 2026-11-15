@@ -10,55 +10,22 @@ import {
 } from './_shared/security';
 
 export type FemaleVoiceOption =
-  | 'voicevox_mochiko'
-  | 'voicevox_mochiko_happy'
-  | 'voicevox_metan'
-  | 'elevenlabs_female';
+  | 'fn6Wir86vS59qP6PheHG'
+  | 'U4eWfk1iaCTV9hveteMg'
+  | 'tmmztcupA9Eu81ix80hq';
 
-const VOICEVOX_SPEAKER_MAP: Record<string, number> = {
-  voicevox_mochiko: 20, // もち子さん（ノーマル）
-  voicevox_mochiko_happy: 79, // もち子さん（喜び）
-  voicevox_metan: 2, // 四国めたん（ノーマル）
-};
-
-const ELEVENLABS_FEMALE_VOICE_ID = 'tmmztcupA9Eu81ix80hq';
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-async function requestVoicevoxWebApi(speakerId: number, text: string): Promise<Response | null> {
-  const apiKey = getEnv('VOICEVOX_API_KEY', '').trim();
-  const keyParam = apiKey ? `&key=${encodeURIComponent(apiKey)}` : '';
-  const url = `https://api.tts.quest/v3/voicevox/synthesis?speaker=${speakerId}&text=${encodeURIComponent(text)}${keyParam}`;
-
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const res = await fetch(url);
-    const data = (await res.json().catch(() => ({}))) as {
-      success?: boolean;
-      retryAfter?: number;
-      mp3StreamingUrl?: string;
-    };
-
-    if (data.mp3StreamingUrl) {
-      const audioRes = await fetch(data.mp3StreamingUrl);
-      if (audioRes.ok && audioRes.body) {
-        return audioRes;
-      }
-    }
-
-    if (data.retryAfter && attempt < 2) {
-      await sleep(Math.min(7000, (data.retryAfter + 1) * 1000));
-      continue;
-    }
-    break;
-  }
-  return null;
-}
+const ALLOWED_VOICE_IDS: FemaleVoiceOption[] = [
+  'fn6Wir86vS59qP6PheHG',
+  'U4eWfk1iaCTV9hveteMg',
+  'tmmztcupA9Eu81ix80hq',
+];
 
 async function requestElevenLabsJapaneseFemale(
   apiKey: string,
+  voiceId: string,
   text: string
 ): Promise<Response> {
-  const endpoint = `https://api.elevenlabs.io/v1/text-to-speech/${ELEVENLABS_FEMALE_VOICE_ID}/stream?output_format=mp3_44100_128`;
+  const endpoint = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream?output_format=mp3_44100_128`;
   return fetch(endpoint, {
     method: 'POST',
     headers: {
@@ -97,6 +64,18 @@ export default async (req: Request, context: Context) => {
     );
   }
 
+  const elevenKey = getEnv('ELEVENLABS_API_KEY', '').trim();
+  if (!elevenKey || elevenKey === 'your_elevenlabs_api_key_here') {
+    return jsonResponse(
+      {
+        error:
+          'ElevenLabs APIキー（ELEVENLABS_API_KEY）が未設定のため、文字チャットのみで動作しています。',
+        code: 'ELEVENLABS_NOT_CONFIGURED',
+      },
+      503
+    );
+  }
+
   const maxChars = Math.min(450, Math.max(80, Number(getEnv('MAX_TTS_CHARS_PER_TURN', '320')) || 320));
 
   let body: { text?: string; voice?: string };
@@ -112,52 +91,36 @@ export default async (req: Request, context: Context) => {
     return jsonResponse({ error: '読み上げテキストが空です。' }, 400);
   }
 
-  const requestedVoice = (body.voice || 'voicevox_mochiko') as FemaleVoiceOption;
-  const speakerId = VOICEVOX_SPEAKER_MAP[requestedVoice];
+  const activeVoiceId: FemaleVoiceOption = ALLOWED_VOICE_IDS.includes(
+    body.voice as FemaleVoiceOption
+  )
+    ? (body.voice as FemaleVoiceOption)
+    : 'fn6Wir86vS59qP6PheHG';
 
   try {
-    // 1. VOICEVOX（もち子さん / あいえるたん）
-    if (speakerId !== undefined) {
-      const vvRes = await requestVoicevoxWebApi(speakerId, text);
-      if (vvRes && vvRes.body) {
-        return new Response(vvRes.body, {
-          status: 200,
-          headers: {
-            'Content-Type': 'audio/mpeg',
-            'Cache-Control': 'no-store',
-            'X-TTS-Provider': 'voicevox',
-            'X-Speaker-Id': String(speakerId),
-            'X-Voice-Id': requestedVoice,
-          },
-        });
-      }
+    const elRes = await requestElevenLabsJapaneseFemale(elevenKey, activeVoiceId, text);
+    if (!elRes.ok || !elRes.body) {
+      const errBody = await elRes.text().catch(() => '');
+      return jsonResponse(
+        {
+          error: `ElevenLabs音声生成エラー (${elRes.status})`,
+          code: 'ELEVENLABS_ERROR',
+          detail: errBody.slice(0, 300),
+        },
+        elRes.status === 429 ? 429 : 502
+      );
     }
 
-    // 2. ElevenLabs 専用女性ボイス（フォールバックまたは明示選択時）
-    const elevenKey = getEnv('ELEVENLABS_API_KEY', '').trim();
-    if (elevenKey && elevenKey !== 'your_elevenlabs_api_key_here') {
-      const elRes = await requestElevenLabsJapaneseFemale(elevenKey, text);
-      if (elRes.ok && elRes.body) {
-        return new Response(elRes.body, {
-          status: 200,
-          headers: {
-            'Content-Type': 'audio/mpeg',
-            'Cache-Control': 'no-store',
-            'X-TTS-Provider': 'elevenlabs',
-            'X-Model-Id': 'eleven_flash_v2_5',
-            'X-Voice-Id': ELEVENLABS_FEMALE_VOICE_ID,
-          },
-        });
-      }
-    }
-
-    return jsonResponse(
-      {
-        error: 'VOICEVOX音声サーバーが混雑しています。数秒おいて再度お試しください。',
-        code: 'TTS_BUSY',
+    return new Response(elRes.body, {
+      status: 200,
+      headers: {
+        'Content-Type': 'audio/mpeg',
+        'Cache-Control': 'no-store',
+        'X-TTS-Provider': 'elevenlabs',
+        'X-Model-Id': 'eleven_flash_v2_5',
+        'X-Voice-Id': activeVoiceId,
       },
-      503
-    );
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     return jsonResponse(
