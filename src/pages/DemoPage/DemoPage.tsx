@@ -21,10 +21,10 @@ import type {
 } from '../../types';
 
 const INITIAL_GREETING =
-  'こんにちは！ オートギャラリー・ダイリンのAI営業アシスタントです。今日はどのようなお車をお探しですか？';
+  'こんにちは！ オートギャラリー・ダイリンのAI営業アシスタントです。お車のご購入や車検・整備・買取など、本日はどのようなご用件でしょうか？';
 
 const INITIAL_GREETING_SPEECH =
-  'こんにちは！ オートギャラリー・ダイリンのAI営業アシスタントです。今日はどのようなお車をお探しですか？';
+  'こんにちは！ オートギャラリー・ダイリンのAI営業アシスタントです。お車のご購入や、車検、整備、買取など、本日はどのようなご用件でしょうか？';
 
 const INITIAL_PREFERENCES: CustomerPreferences = {
   purpose: 'unknown',
