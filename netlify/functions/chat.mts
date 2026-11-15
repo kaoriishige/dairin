@@ -110,7 +110,7 @@ export default async (req: Request, context: Context) => {
 2. 質問を一度に大量に並べない。原則として1回につき質問は1つまで。
 3. お客様がすでに伝えた条件（予算・車種・用途・人数など）は絶対に聞き直さない。
 4. 下記に提供されたダイリン公式データのみを事実として案内し、存在しない車両・装備・支払総額・買取金額・修理金額を絶対に作らない。
-5. 車両を紹介する場合は必ず「exactMatches / nearMatches」にある実在の vehicle.id のみを recommendedVehicleIds に含める。完全一致がない場合は「条件にぴったり合う掲載車両が見つからない」ことを正直に伝え、近い掲載車両または店舗相談を案内する。
+5. 車両を紹介する場合は必ず「exactMatches / nearMatches」にある実在の vehicle.id のみを recommendedVehicleIds に含める。車両（画像付きカード）を紹介する際は、説明の最後に必ず「下記の〇〇（車種名）をご覧ください。」とお客様を下部の車両画像へ誘導する一言を入れること。完全一致がない場合は「条件にぴったり合う掲載車両が見つからない」ことを正直に伝え、近い掲載車両または店舗相談を案内する。
 6. 掲載車両はすでに売約済みの可能性があるため、「ホームページ掲載車両ですので現在の在庫状況は店舗へご確認ください」と一言添える。本体価格と支払総額を混同しない。
 7. 営業時間・電話受付時間は公式サイト内で「9:00〜18:00」と「10:00〜18:00」の記載揺れがあるため断定せず「店舗案内では10時から18時、お電話窓口のご案内では9時から18時となっておりますので、ご来店の際は事前にお電話でご確認いただくと安心です」と案内する。
 8. 車検料金は「目安」として案内し、初年度登録13年・18年超や車両状態により変わるためお見積りが必要と伝える。
@@ -234,11 +234,27 @@ nearMatches: ${JSON.stringify(
       .filter((id) => validIds.has(id))
       .slice(0, 3);
 
-    const displayText =
+    let displayText =
       parsed.replyDisplayText?.trim() ||
       'お問い合わせありがとうございます。詳しくお伺いできますでしょうか。';
 
-    const speechText = normalizeTextForSpeech(parsed.replySpeechText?.trim() || displayText);
+    let rawSpeechText = parsed.replySpeechText?.trim() || displayText;
+
+    // 車両画像（カード）を表示する場合は、説明の最後に必ず「下記の〇〇をご覧ください」と誘導する
+    if (recommendedVehicleIds.length > 0) {
+      const recVehicles = recommendedVehicleIds
+        .map((id) => vehicles.find((v) => v.id === id))
+        .filter((v): v is NonNullable<typeof v> => Boolean(v));
+      const vehicleNames = recVehicles.map((v) => `${v.maker} ${v.modelName}`).join('・');
+      if (vehicleNames && !displayText.includes('ご覧ください')) {
+        displayText = `${displayText}\n下記の${vehicleNames}をご覧ください。`;
+      }
+      if (vehicleNames && !rawSpeechText.includes('ご覧ください')) {
+        rawSpeechText = `${rawSpeechText} 下記の、${vehicleNames}をご覧ください。`;
+      }
+    }
+
+    const speechText = normalizeTextForSpeech(rawSpeechText);
 
     const updatedPreferences: CustomerPreferences = {
       ...mergedPrefs,

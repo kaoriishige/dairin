@@ -2,10 +2,7 @@ import { splitIntoSpeechChunks } from './speechTextNormalizer';
 
 export type MouthVowelShape = 'closed' | 'a' | 'i' | 'u' | 'e' | 'o';
 
-export type FemaleVoiceChoice =
-  | 'fn6Wir86vS59qP6PheHG'
-  | 'U4eWfk1iaCTV9hveteMg'
-  | 'tmmztcupA9Eu81ix80hq';
+export type FemaleVoiceChoice = 'fn6Wir86vS59qP6PheHG';
 
 export interface LiveVoiceMetrics {
   level: number;
@@ -298,26 +295,73 @@ export class ElevenLabsStreamingPlayer {
         const audio = this.getOrCreateAudioElement();
 
         await new Promise<void>((resolve, reject) => {
+          let settled = false;
+          let watchdogTimer: ReturnType<typeof setInterval> | null = null;
+          let maxTimer: ReturnType<typeof setTimeout> | null = null;
+
+          const cleanup = () => {
+            if (watchdogTimer) {
+              clearInterval(watchdogTimer);
+              watchdogTimer = null;
+            }
+            if (maxTimer) {
+              clearTimeout(maxTimer);
+              maxTimer = null;
+            }
+            if (this.rafId !== null) {
+              cancelAnimationFrame(this.rafId);
+              this.rafId = null;
+            }
+            if (this.activeObjectUrl === objectUrl) {
+              URL.revokeObjectURL(objectUrl);
+              this.activeObjectUrl = null;
+            }
+          };
+
+          const finishOk = () => {
+            if (settled) return;
+            settled = true;
+            cleanup();
+            resolve();
+          };
+
+          const finishErr = (err: Error) => {
+            if (settled) return;
+            settled = true;
+            cleanup();
+            reject(err);
+          };
+
           audio.src = objectUrl;
           audio.volume = this.volume;
 
-          audio.onended = () => {
-            if (this.activeObjectUrl === objectUrl) {
-              URL.revokeObjectURL(objectUrl);
-              this.activeObjectUrl = null;
+          audio.onended = () => finishOk();
+          audio.onerror = () => finishErr(new Error('音声の再生に失敗しました。'));
+
+          // モバイルブラウザ等で onended が遅延・欠落した場合でも確実に口パクを停止する監視タイマー
+          watchdogTimer = setInterval(() => {
+            if (myToken !== this.playbackToken) {
+              finishOk();
+              return;
             }
-            resolve();
-          };
-          audio.onerror = () => {
-            if (this.activeObjectUrl === objectUrl) {
-              URL.revokeObjectURL(objectUrl);
-              this.activeObjectUrl = null;
+            if (
+              audio.ended ||
+              (Number.isFinite(audio.duration) &&
+                audio.duration > 0 &&
+                audio.currentTime >= audio.duration - 0.04) ||
+              (audio.paused && audio.currentTime > 0.15)
+            ) {
+              finishOk();
             }
-            reject(new Error('音声の再生に失敗しました。'));
-          };
+          }, 120);
+
+          const maxDurationMs = Math.max(8000, chunk.length * 320);
+          maxTimer = setTimeout(() => {
+            finishOk();
+          }, maxDurationMs);
 
           this.startLevelPulse(callbacks.onAudioLevel);
-          audio.play().catch(reject);
+          audio.play().catch(finishErr);
         });
       }
 

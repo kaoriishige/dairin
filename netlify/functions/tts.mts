@@ -9,16 +9,9 @@ import {
   verifyDemoAccess,
 } from './_shared/security';
 
-export type FemaleVoiceOption =
-  | 'fn6Wir86vS59qP6PheHG'
-  | 'U4eWfk1iaCTV9hveteMg'
-  | 'tmmztcupA9Eu81ix80hq';
+export type FemaleVoiceOption = 'fn6Wir86vS59qP6PheHG';
 
-const ALLOWED_VOICE_IDS: FemaleVoiceOption[] = [
-  'fn6Wir86vS59qP6PheHG',
-  'U4eWfk1iaCTV9hveteMg',
-  'tmmztcupA9Eu81ix80hq',
-];
+const FIXED_VOICE_ID: FemaleVoiceOption = 'fn6Wir86vS59qP6PheHG';
 
 async function requestElevenLabsJapaneseFemale(
   apiKey: string,
@@ -91,11 +84,7 @@ export default async (req: Request, context: Context) => {
     return jsonResponse({ error: '読み上げテキストが空です。' }, 400);
   }
 
-  const activeVoiceId: FemaleVoiceOption = ALLOWED_VOICE_IDS.includes(
-    body.voice as FemaleVoiceOption
-  )
-    ? (body.voice as FemaleVoiceOption)
-    : 'fn6Wir86vS59qP6PheHG';
+  const activeVoiceId: FemaleVoiceOption = FIXED_VOICE_ID;
 
   try {
     const elRes = await requestElevenLabsJapaneseFemale(elevenKey, activeVoiceId, text);

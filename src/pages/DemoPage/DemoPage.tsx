@@ -3,11 +3,11 @@ import { AlertTriangle, Lock } from 'lucide-react';
 import { ChatPanel } from '../../components/ChatPanel/ChatPanel';
 import { SalesCharacter } from '../../components/SalesCharacter/SalesCharacter';
 import { ServiceMenu } from '../../components/ServiceMenu/ServiceMenu';
+import { VehicleCard } from '../../components/VehicleCard/VehicleCard';
 import { VoiceControls } from '../../components/VoiceControls/VoiceControls';
 import { useSpeechRecognition } from '../../hooks/useSpeechRecognition';
 import {
   ElevenLabsStreamingPlayer,
-  type FemaleVoiceChoice,
   type MouthVowelShape,
 } from '../../services/audio/elevenLabsPlayer';
 import type {
@@ -75,6 +75,7 @@ export const DemoPage: React.FC<DemoPageProps> = () => {
   const [ttsCallsCount, setTtsCallsCount] = useState(0);
 
   const [sessionStarted, setSessionStarted] = useState(false);
+  const sessionActiveRef = useRef(false);
   const [conversationId, setConversationId] = useState(() => `conv-${Date.now()}`);
   const [characterState, setCharacterState] = useState<CharacterState>('idle');
   const [audioLevel, setAudioLevel] = useState(0);
@@ -86,13 +87,14 @@ export const DemoPage: React.FC<DemoPageProps> = () => {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [showSubtitle, setShowSubtitle] = useState(true);
   const [volume, setVolume] = useState(0.9);
-  const [voiceChoice, setVoiceChoice] = useState<FemaleVoiceChoice>('fn6Wir86vS59qP6PheHG');
   const [noticeMessage, setNoticeMessage] = useState<string | null>(null);
 
   const playerRef = useRef<ElevenLabsStreamingPlayer | null>(null);
   if (!playerRef.current) {
     playerRef.current = new ElevenLabsStreamingPlayer();
   }
+
+  const sendMessageRef = useRef<((text: string) => Promise<void>) | null>(null);
 
   const getLiveVoiceMetrics = useCallback(() => {
     return (
@@ -146,13 +148,30 @@ export const DemoPage: React.FC<DemoPageProps> = () => {
     };
   }, [loadPublicData, passcode]);
 
+  const startAutoListenAfterSpeech = useCallback(() => {
+    if (!sessionActiveRef.current || !speech.isSupported) {
+      setCharacterState('idle');
+      return;
+    }
+    setCharacterState('listening');
+    speech.startListening(
+      (transcript) => {
+        void sendMessageRef.current?.(transcript);
+      },
+      { silentOnAutoError: true }
+    );
+  }, [speech]);
+
   const playAssistantVoice = useCallback(
     async (speechText: string, nextIdleState: CharacterState) => {
       if (!ttsEnabled || ttsCallsCount >= maxTtsCalls) {
         if (ttsCallsCount >= maxTtsCalls) {
           setNoticeMessage('セッションあたりの音声生成上限に達したため、文字チャットで継続します。');
         }
-        setCharacterState(nextIdleState === 'introducing_vehicle' ? 'introducing_vehicle' : 'idle');
+        setIsSpeaking(false);
+        setAudioLevel(0);
+        setCurrentVowel('closed');
+        startAutoListenAfterSpeech();
         return;
       }
 
@@ -167,12 +186,11 @@ export const DemoPage: React.FC<DemoPageProps> = () => {
           setCurrentVowel(vowelShape ?? 'closed');
         },
         onEnd: () => {
+          // セリフが終わったら即座に口パクを止め、自動でマイク聞き取りへ移行する
           setIsSpeaking(false);
           setAudioLevel(0);
           setCurrentVowel('closed');
-          setCharacterState((prev) =>
-            prev === 'introducing_vehicle' ? 'introducing_vehicle' : 'idle'
-          );
+          startAutoListenAfterSpeech();
         },
         onFallbackToText: (reason) => {
           setIsSpeaking(false);
@@ -189,11 +207,12 @@ export const DemoPage: React.FC<DemoPageProps> = () => {
         },
       });
     },
-    [maxTtsCalls, passcode, ttsCallsCount, ttsEnabled]
+    [maxTtsCalls, passcode, startAutoListenAfterSpeech, ttsCallsCount, ttsEnabled]
   );
 
   const handleStartSession = useCallback(() => {
     playerRef.current?.unlockAudioForMobile();
+    sessionActiveRef.current = true;
     setSessionStarted(true);
     setNoticeMessage(null);
     const greetingMsg: ChatMessage = {
@@ -204,7 +223,6 @@ export const DemoPage: React.FC<DemoPageProps> = () => {
       createdAt: new Date().toISOString(),
     };
     setMessages([greetingMsg]);
-    // 会話開始時に画面が一番下へ飛ばず、上部のキャラクターが必ず表示されたままになるよう最上部を維持
     window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
     void playAssistantVoice(INITIAL_GREETING_SPEECH, 'speaking');
   }, [playAssistantVoice]);
@@ -214,8 +232,8 @@ export const DemoPage: React.FC<DemoPageProps> = () => {
     setIsSpeaking(false);
     setAudioLevel(0);
     setCurrentVowel('closed');
-    setCharacterState('idle');
-  }, []);
+    startAutoListenAfterSpeech();
+  }, [startAutoListenAfterSpeech]);
 
   const handleSendMessage = useCallback(
     async (rawText: string) => {
@@ -231,6 +249,7 @@ export const DemoPage: React.FC<DemoPageProps> = () => {
       speech.stopListening();
 
       if (!sessionStarted) {
+        sessionActiveRef.current = true;
         setSessionStarted(true);
       }
 
@@ -303,6 +322,7 @@ export const DemoPage: React.FC<DemoPageProps> = () => {
         const errMsg =
           err instanceof Error ? err.message : '通信エラーが発生しました。再度お試しください。';
         setIsThinking(false);
+        setIsSpeaking(false);
         setCharacterState('idle');
         setNoticeMessage(errMsg);
         appendLocalLog<ErrorLogEntry>('dairin_error_logs', {
@@ -326,6 +346,10 @@ export const DemoPage: React.FC<DemoPageProps> = () => {
     ]
   );
 
+  useEffect(() => {
+    sendMessageRef.current = handleSendMessage;
+  }, [handleSendMessage]);
+
   const handleToggleMic = useCallback(() => {
     if (speech.isListening) {
       speech.stopListening();
@@ -347,6 +371,7 @@ export const DemoPage: React.FC<DemoPageProps> = () => {
   const handleResetSession = useCallback(() => {
     playerRef.current?.stop();
     speech.stopListening();
+    sessionActiveRef.current = true;
     setIsSpeaking(false);
     setIsThinking(false);
     setAudioLevel(0);
@@ -368,6 +393,7 @@ export const DemoPage: React.FC<DemoPageProps> = () => {
   }, [speech]);
 
   const handleEndSession = useCallback(() => {
+    sessionActiveRef.current = false;
     playerRef.current?.stop();
     speech.stopListening();
     setIsSpeaking(false);
@@ -381,11 +407,19 @@ export const DemoPage: React.FC<DemoPageProps> = () => {
     setCharacterState('idle');
   }, [speech]);
 
+  const latestAssistantMessage = useMemo(() => {
+    return [...messages].reverse().find((m) => m.role === 'assistant');
+  }, [messages]);
+
   const latestAssistantSubtitle = useMemo(() => {
     if (!showSubtitle) return undefined;
-    const last = [...messages].reverse().find((m) => m.role === 'assistant');
-    return last?.displayText;
-  }, [messages, showSubtitle]);
+    return latestAssistantMessage?.displayText;
+  }, [latestAssistantMessage, showSubtitle]);
+
+  const latestRecommendedVehicles = useMemo(() => {
+    const ids = latestAssistantMessage?.recommendedVehicleIds ?? [];
+    return ids.map((id) => vehiclesById[id]).filter(Boolean);
+  }, [latestAssistantMessage, vehiclesById]);
 
   if (passcodeRequired) {
     return (
@@ -444,25 +478,22 @@ export const DemoPage: React.FC<DemoPageProps> = () => {
         </p>
       </header>
 
-      {/* メインエリア：スマホでは「キャラ → 会話を始める →（開始後にチャット欄＆相談メニュー）」の順 */}
+      {/* メインエリア：キャラクターを中心に対話 */}
       <main className="flex-1 max-w-6xl w-full mx-auto px-3 md:px-6 py-3 md:py-4 grid grid-cols-1 lg:grid-cols-12 gap-3 md:gap-4 items-start">
-        {/* 左側（スマホでは上部）：女性キャラクター表示エリア */}
+        {/* 左側（スマホでは最上部）：女性キャラクター表示エリア */}
         <div className="lg:col-span-5 xl:col-span-4 lg:sticky lg:top-16">
           <SalesCharacter
             state={speech.isListening ? 'listening' : characterState}
+            isSpeaking={isSpeaking}
             audioLevel={audioLevel}
             vowel={currentVowel}
             getLiveVoiceMetrics={getLiveVoiceMetrics}
-            voiceChoice={voiceChoice}
-            onChangeVoiceChoice={(choice) => {
-              setVoiceChoice(choice);
-              playerRef.current?.setVoiceChoice(choice);
-            }}
             subtitle={latestAssistantSubtitle}
+            interimTranscript={speech.interimTranscript}
           />
         </div>
 
-        {/* 右側（スマホではキャラクターのすぐ下）：会話を始めるボタン＆会話開始後のチャット欄 */}
+        {/* 右側（スマホではキャラクターのすぐ下）：対話操作・紹介車両・相談メニュー */}
         <div className="lg:col-span-7 xl:col-span-8 flex flex-col gap-3">
           {/* キャラのすぐ下に「会話を始める」（開始後は音声・文字入力操作）を配置 */}
           <VoiceControls
@@ -498,16 +529,32 @@ export const DemoPage: React.FC<DemoPageProps> = () => {
             </div>
           )}
 
-          {/* 会話を始めた後にのみ、チャット欄と「ご希望のご相談内容（メニュー）」を表示 */}
+          {/* 車両画像を出すときは「下記の〇〇をご覧ください」の誘導すぐ下に車両カードを表示 */}
+          {sessionStarted && latestRecommendedVehicles.length > 0 && (
+            <section
+              aria-label="ご紹介中の車両"
+              className="bg-sky-50/90 border-2 border-sky-300 rounded-2xl p-3 space-y-2.5 shadow-xs"
+            >
+              <p className="text-xs sm:text-sm font-extrabold text-sky-900">
+                👇 ご紹介中の車両（画像・詳細）
+              </p>
+              <div className="space-y-2.5">
+                {latestRecommendedVehicles.map((v) => (
+                  <VehicleCard key={v.id} vehicle={v} />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* 会話を始めた後に表示する「ご希望のご相談内容（メニュー）」と会話履歴 */}
           {sessionStarted && (
             <section
               aria-label="会話と車両紹介"
               className="bg-white rounded-2xl border border-slate-200 shadow-xs p-3 md:p-4 flex flex-col gap-3"
             >
-              {/* チャット欄の中に配置した「ご希望のご相談内容をお選びください」 */}
               <div className="bg-blue-50/70 border border-blue-100 rounded-xl p-2.5">
                 <p className="text-xs font-bold text-blue-900 mb-2">
-                  ご希望のご相談内容をお選びください（タップでご相談できます）
+                  ご希望のご相談内容をお選びください（タップでもお話できます）
                 </p>
                 <ServiceMenu
                   onSelect={(prompt) => void handleSendMessage(prompt)}
@@ -515,7 +562,7 @@ export const DemoPage: React.FC<DemoPageProps> = () => {
                 />
               </div>
 
-              <div className="flex flex-col min-h-[240px] max-h-[55vh]">
+              <div className="flex flex-col max-h-[45vh]">
                 <ChatPanel
                   messages={messages}
                   vehiclesById={vehiclesById}
