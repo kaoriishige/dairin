@@ -73,6 +73,18 @@ export const DemoPage: React.FC<DemoPageProps> = ({ onOpenAdmin }) => {
     playerRef.current = new ElevenLabsStreamingPlayer();
   }
 
+  const getLiveVoiceMetrics = useCallback(() => {
+    return (
+      playerRef.current?.getLiveVoiceMetrics() ?? {
+        level: 0,
+        openY: 0,
+        formRow: 1.0,
+        vowel: 'closed' as const,
+        isPlaying: false,
+      }
+    );
+  }, []);
+
   const speech = useSpeechRecognition();
 
   const vehiclesById = useMemo(() => {
@@ -482,6 +494,7 @@ export const DemoPage: React.FC<DemoPageProps> = ({ onOpenAdmin }) => {
             state={speech.isListening ? 'listening' : characterState}
             audioLevel={audioLevel}
             vowel={currentVowel}
+            getLiveVoiceMetrics={getLiveVoiceMetrics}
             subtitle={latestAssistantSubtitle}
             onPlaySampleVoice={handlePlaySampleVoice}
             onPlayTestGreeting={handlePlayTestGreeting}

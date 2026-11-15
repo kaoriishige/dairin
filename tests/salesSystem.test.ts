@@ -82,7 +82,11 @@ describe('オートギャラリーダイリン AI営業システム 検証テス
 
     // 無音時は口が閉じる ('closed')
     const silentBins = new Uint8Array(32);
-    expect(estimateVowelFromSpectrum(silentBins)).toEqual({ level: 0, vowel: 'closed' });
+    expect(estimateVowelFromSpectrum(silentBins)).toMatchObject({
+      level: 0,
+      vowel: 'closed',
+      targetOpenY: 0,
+    });
 
     // 母音「あ」スペクトル（F1帯が強い）
     const aBins = new Uint8Array(32).fill(20);
@@ -92,6 +96,7 @@ describe('オートギャラリーダイリン AI営業システム 検証テス
     aBins[4] = 190;
     aBins[5] = 175;
     expect(estimateVowelFromSpectrum(aBins).vowel).toBe('a');
+    expect(estimateVowelFromSpectrum(aBins).targetOpenY).toBeGreaterThan(0.4);
 
     // 母音「い」スペクトル（F2高域帯が強い）
     const iBins = new Uint8Array(32).fill(15);
@@ -104,9 +109,11 @@ describe('オートギャラリーダイリン AI営業システム 検証テス
     iBins[14] = 85;
     expect(estimateVowelFromSpectrum(iBins).vowel).toBe('i');
 
-    // 目・口アニメーション用パーツ9種がすべて存在すること
+    // 無段階補間用アトラスおよび目・口アニメーション用パーツが存在すること
     const partsDir = path.resolve(process.cwd(), 'public/images/parts');
     const requiredParts = [
+      'mouth_atlas.png',
+      'eyes_atlas.png',
       'eyes_open.png',
       'eyes_half.png',
       'eyes_closed.png',

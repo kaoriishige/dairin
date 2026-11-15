@@ -1,28 +1,27 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Mic, Sparkles, Volume2, Car, Clock, MessageSquareHeart } from 'lucide-react';
 import type { CharacterState } from '../../types';
-import type { MouthVowelShape } from '../../services/audio/elevenLabsPlayer';
+import type { LiveVoiceMetrics, MouthVowelShape } from '../../services/audio/elevenLabsPlayer';
 
 export interface SalesCharacterProps {
   state: CharacterState;
-  audioLevel?: number; // 0.0 - 1.0 音声エネルギー
-  vowel?: MouthVowelShape; // フォルマント解析による日本語母音 ('closed' | 'a' | 'i' | 'u' | 'e' | 'o')
+  audioLevel?: number;
+  vowel?: MouthVowelShape;
+  getLiveVoiceMetrics?: () => LiveVoiceMetrics;
   subtitle?: string;
   onPlaySampleVoice?: () => void;
   onPlayTestGreeting?: () => void;
-  rendererMode?: 'canvas_25d_lipsync' | 'live2d_cubism';
 }
-
-type EyeBlinkState = 'open' | 'half' | 'closed';
 
 const CANVAS_W = 1024;
 const CANVAS_H = 935;
 
-// 元画像 (1024x935) から抽出した目・口パーツの精密座標
+// 元画像 (1024x935) の目・口パーツ領域
 const EYE_RECT = { x: 435, y: 245, w: 255, h: 88 };
+const EYE_STEPS = 10; // eyes_atlas.png: 255 x 880 (縦10段階の連続まばたき)
+
 const MOUTH_RECT = { x: 520, y: 360, w: 132, h: 76 };
-// 頭部・首の付け根ピボット座標（自然なうなずき・首の傾き用）
-const NECK_PIVOT = { x: 560, y: 465 };
+const MOUTH_COLS = 16; // mouth_atlas.png: 横16段階の連続口開き (0.00 .. 1.00)
 
 const STATE_CONFIG: Record<
   CharacterState,
@@ -74,10 +73,10 @@ const VOWEL_LABELS: Record<MouthVowelShape, string> = {
   o: 'お',
 };
 
-interface LoadedSprites {
+interface LoadedAtlases {
   base: HTMLImageElement;
-  eyes: Record<EyeBlinkState, HTMLImageElement>;
-  mouths: Record<MouthVowelShape, HTMLImageElement>;
+  eyesAtlas: HTMLImageElement;
+  mouthAtlas: HTMLImageElement;
 }
 
 function loadImage(src: string): Promise<HTMLImageElement> {
@@ -90,10 +89,55 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
+/**
+ * 連続時間 now (ms) から、現在のまばたき閉眼率 (0.000 = 開眼 .. 1.000 = 閉眼) を
+ * コサイン補間で滑らかに算出する（カクつきゼロの60fps連続カーブ）。
+ */
+function evaluateBlinkClosure(elapsedMs: number, isDoubleBlink: boolean): {
+  closure: number;
+  finished: boolean;
+} {
+  // 1回目のまばたき (0..185ms)
+  const closeDur = 72;
+  const holdDur = 20;
+  const openDur = 93;
+  const singleTotal = closeDur + holdDur + openDur; // 185ms
+
+  const evalSingle = (t: number): number => {
+    if (t < 0 || t >= singleTotal) return 0;
+    if (t < closeDur) {
+      return 0.5 * (1 - Math.cos(Math.PI * (t / closeDur)));
+    }
+    if (t < closeDur + holdDur) {
+      return 1.0;
+    }
+    const openT = (t - closeDur - holdDur) / openDur;
+    return 0.5 * (1 + Math.cos(Math.PI * openT));
+  };
+
+  if (!isDoubleBlink) {
+    if (elapsedMs >= singleTotal) return { closure: 0, finished: true };
+    return { closure: evalSingle(elapsedMs), finished: false };
+  }
+
+  // ダブルブリンク時は 110ms 空けて2回目を実行
+  const secondStart = singleTotal + 95;
+  const doubleTotal = secondStart + singleTotal;
+  if (elapsedMs >= doubleTotal) return { closure: 0, finished: true };
+  if (elapsedMs < singleTotal) {
+    return { closure: evalSingle(elapsedMs), finished: false };
+  }
+  if (elapsedMs >= secondStart) {
+    return { closure: evalSingle(elapsedMs - secondStart), finished: false };
+  }
+  return { closure: 0, finished: false };
+}
+
 export const SalesCharacter: React.FC<SalesCharacterProps> = ({
   state,
   audioLevel = 0,
   vowel = 'closed',
+  getLiveVoiceMetrics,
   subtitle,
   onPlaySampleVoice,
   onPlayTestGreeting,
@@ -102,271 +146,308 @@ export const SalesCharacter: React.FC<SalesCharacterProps> = ({
   const StatusIcon = cfg.Icon;
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const spritesRef = useRef<LoadedSprites | null>(null);
-  const [spritesReady, setSpritesReady] = useState(false);
+  const offscreenCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const atlasesRef = useRef<LoadedAtlases | null>(null);
+  const [atlasesReady, setAtlasesReady] = useState(false);
 
-  // 最新propsをアニメーションループ内で参照するためのref
   const stateRef = useRef<CharacterState>(state);
-  const levelRef = useRef<number>(audioLevel);
-  const vowelRef = useRef<MouthVowelShape>(vowel);
-  const eyeStateRef = useRef<EyeBlinkState>('open');
-  const smoothedVowelRef = useRef<{ shape: MouthVowelShape; lastChangedAt: number }>({
-    shape: 'closed',
-    lastChangedAt: 0,
-  });
+  const propLevelRef = useRef<number>(audioLevel);
+  const propVowelRef = useRef<MouthVowelShape>(vowel);
+  const getMetricsRef = useRef<(() => LiveVoiceMetrics) | undefined>(getLiveVoiceMetrics);
 
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
 
   useEffect(() => {
-    levelRef.current = audioLevel;
+    propLevelRef.current = audioLevel;
   }, [audioLevel]);
 
   useEffect(() => {
-    vowelRef.current = vowel;
+    propVowelRef.current = vowel;
   }, [vowel]);
 
-  // 1. ベース画像および目（3種）・母音別口（6種）パーツのプリロード
+  useEffect(() => {
+    getMetricsRef.current = getLiveVoiceMetrics;
+  }, [getLiveVoiceMetrics]);
+
+  // 1. ベース画像＋連続10段階まばたきアトラス＋連続16×3段階口形アトラスをプリロード
   useEffect(() => {
     let cancelled = false;
 
-    async function preloadAll() {
+    async function preload() {
       try {
-        const [
-          base,
-          eyeOpen,
-          eyeHalf,
-          eyeClosed,
-          mouthClosed,
-          mouthA,
-          mouthI,
-          mouthU,
-          mouthE,
-          mouthO,
-        ] = await Promise.all([
+        const [base, eyesAtlas, mouthAtlas] = await Promise.all([
           loadImage('/images/dairin_ai_sales_character.png'),
-          loadImage('/images/parts/eyes_open.png'),
-          loadImage('/images/parts/eyes_half.png'),
-          loadImage('/images/parts/eyes_closed.png'),
-          loadImage('/images/parts/mouth_closed.png'),
-          loadImage('/images/parts/mouth_a.png'),
-          loadImage('/images/parts/mouth_i.png'),
-          loadImage('/images/parts/mouth_u.png'),
-          loadImage('/images/parts/mouth_e.png'),
-          loadImage('/images/parts/mouth_o.png'),
+          loadImage('/images/parts/eyes_atlas.png'),
+          loadImage('/images/parts/mouth_atlas.png'),
         ]);
-
         if (cancelled) return;
-        spritesRef.current = {
-          base,
-          eyes: {
-            open: eyeOpen,
-            half: eyeHalf,
-            closed: eyeClosed,
-          },
-          mouths: {
-            closed: mouthClosed,
-            a: mouthA,
-            i: mouthI,
-            u: mouthU,
-            e: mouthE,
-            o: mouthO,
-          },
-        };
-        setSpritesReady(true);
+
+        const offCanvas = document.createElement('canvas');
+        offCanvas.width = CANVAS_W;
+        offCanvas.height = CANVAS_H;
+        offscreenCanvasRef.current = offCanvas;
+
+        atlasesRef.current = { base, eyesAtlas, mouthAtlas };
+        setAtlasesReady(true);
       } catch {
-        // テスト環境や画像未ロード時はフォールバック<img>を表示
+        // テスト環境等ではフォールバック<img>を表示
       }
     }
 
-    void preloadAll();
+    void preload();
     return () => {
       cancelled = true;
     };
   }, []);
 
-  // 2. 不規則で自然なまばたきスケジューラ（機械的な一定周期ではなくランダム間隔＋時々2回まばたき）
+  // 2. 60fps 無段階補間アニメーション＆2.5Dストリップメッシュ変形レンダラー
   useEffect(() => {
-    let timerId: number | undefined;
-    let subTimers: number[] = [];
-    let active = true;
-
-    const clearSubTimers = () => {
-      subTimers.forEach((id) => window.clearTimeout(id));
-      subTimers = [];
-    };
-
-    const triggerBlinkSequence = (isDoubleBlink: boolean) => {
-      if (!active) return;
-      // 1回目のまばたき: open -> half(45ms) -> closed(65ms) -> half(45ms) -> open
-      eyeStateRef.current = 'half';
-      subTimers.push(
-        window.setTimeout(() => {
-          if (!active) return;
-          eyeStateRef.current = 'closed';
-        }, 45)
-      );
-      subTimers.push(
-        window.setTimeout(() => {
-          if (!active) return;
-          eyeStateRef.current = 'half';
-        }, 110)
-      );
-      subTimers.push(
-        window.setTimeout(() => {
-          if (!active) return;
-          eyeStateRef.current = 'open';
-        }, 155)
-      );
-
-      if (isDoubleBlink) {
-        subTimers.push(
-          window.setTimeout(() => {
-            if (!active) return;
-            eyeStateRef.current = 'half';
-          }, 290)
-        );
-        subTimers.push(
-          window.setTimeout(() => {
-            if (!active) return;
-            eyeStateRef.current = 'closed';
-          }, 330)
-        );
-        subTimers.push(
-          window.setTimeout(() => {
-            if (!active) return;
-            eyeStateRef.current = 'half';
-          }, 390)
-        );
-        subTimers.push(
-          window.setTimeout(() => {
-            if (!active) return;
-            eyeStateRef.current = 'open';
-          }, 435)
-        );
-      }
-    };
-
-    const scheduleNextBlink = () => {
-      if (!active) return;
-      // 2.2秒〜5.6秒の不規則な間隔
-      const nextDelay = 2200 + Math.random() * 3400;
-      timerId = window.setTimeout(() => {
-        if (!active) return;
-        clearSubTimers();
-        const isDouble = Math.random() < 0.22;
-        triggerBlinkSequence(isDouble);
-        scheduleNextBlink();
-      }, nextDelay);
-    };
-
-    scheduleNextBlink();
-    return () => {
-      active = false;
-      if (timerId !== undefined) window.clearTimeout(timerId);
-      clearSubTimers();
-    };
-  }, []);
-
-  // 3. 60fps Canvas アニメーションレンダラー（呼吸・首の揺らぎ・うなずき・まばたき・母音リップシンク）
-  useEffect(() => {
-    if (!spritesReady || !spritesRef.current || !canvasRef.current) return;
+    if (!atlasesReady || !atlasesRef.current || !canvasRef.current || !offscreenCanvasRef.current) {
+      return;
+    }
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    const offCanvas = offscreenCanvasRef.current;
+    const offCtx = offCanvas.getContext('2d');
+    if (!ctx || !offCtx) return;
 
     let rafId = 0;
     const startTime = performance.now();
 
+    // 連続補間状態（物理ダンパー用）
+    let smoothOpenY = 0; // 0.000 .. 1.000
+    let smoothFormRow = 1.0; // 0.000 .. 2.000
+    let smoothNodY = 0; // px
+    let smoothHeadSwayX = 0; // px
+    let smoothEyeSquint = 0; // 0.000 .. 0.350
+
+    // 不規則まばたきタイマー状態（requestAnimationFrame内で連続評価）
+    let nextBlinkAt = startTime + 1800 + Math.random() * 2600;
+    let blinkStartedAt: number | null = null;
+    let blinkIsDouble = false;
+
     const renderFrame = (now: number) => {
-      const sprites = spritesRef.current;
-      if (!sprites) return;
+      const atlases = atlasesRef.current;
+      if (!atlases) return;
 
       const t = (now - startTime) / 1000;
       const curState = stateRef.current;
-      const curLevel = Math.min(1, Math.max(0, levelRef.current));
-      const rawVowel = vowelRef.current;
       const isSpeakingLike = curState === 'speaking' || curState === 'introducing_vehicle';
 
-      // --- (A) 口形状（母音リップシンク＆音声停止時の確実な閉口） ---
-      let targetMouth: MouthVowelShape = 'closed';
-      if (isSpeakingLike && curLevel > 0.065) {
-        if (rawVowel !== 'closed') {
-          targetMouth = rawVowel;
-        } else {
-          // 音量に応じて自然な母音へフォールバック
-          targetMouth = curLevel > 0.38 ? 'a' : curLevel > 0.2 ? 'e' : 'u';
-        }
+      // --- (A) Web Audio API から直接60fpsで連続口形パラメータを取得 ---
+      const live = getMetricsRef.current?.();
+      let targetOpenY = 0;
+      let targetFormRow = 1.0;
+      let activeLevel = 0;
+
+      if (live && live.isPlaying) {
+        activeLevel = live.level;
+        // 発話のリズムに合わせて自然な音節の抑揚（シラブルパルス）を加味し、無段階に開閉
+        const syllableWave = 0.85 + 0.15 * Math.sin(t * 16.5);
+        targetOpenY = Math.min(1, live.openY * syllableWave);
+        targetFormRow = live.formRow;
+      } else if (isSpeakingLike && propLevelRef.current > 0.05) {
+        activeLevel = propLevelRef.current;
+        targetOpenY = Math.min(1, propLevelRef.current);
       } else {
-        // 音声が停止した・無音区間のときは即座に口を閉じる
-        targetMouth = 'closed';
+        // 音声停止時はターゲット0（閉口）
+        activeLevel = 0;
+        targetOpenY = 0;
+        targetFormRow = 1.0;
       }
 
-      // 発話中の口形状が1フレームごとにパタパタしすぎないよう48msの最小保持時間を適用（ただし閉口時は即座に反映）
-      if (targetMouth === 'closed') {
-        smoothedVowelRef.current = { shape: 'closed', lastChangedAt: now };
-      } else if (
-        smoothedVowelRef.current.shape === 'closed' ||
-        now - smoothedVowelRef.current.lastChangedAt >= 48
-      ) {
-        smoothedVowelRef.current = { shape: targetMouth, lastChangedAt: now };
+      // 60fps スプリング補間（急激なジャンプを無くし、人間の唇の開閉速度で滑らかに追従）
+      const openLerp = targetOpenY > smoothOpenY ? 0.36 : 0.22;
+      smoothOpenY += (targetOpenY - smoothOpenY) * openLerp;
+      if (smoothOpenY < 0.005 && targetOpenY === 0) {
+        smoothOpenY = 0;
       }
-      const activeMouthShape = smoothedVowelRef.current.shape;
+      smoothFormRow += (targetFormRow - smoothFormRow) * 0.16;
 
-      // --- (B) 非周期的な呼吸・うなずき・首の自然な微細モーション計算 ---
-      // 複数の互いに素な周波数を合成し、機械的な反復を排除
-      const breathWave =
-        Math.sin(t * 1.45) * 0.65 + Math.sin(t * 0.85 + 1.1) * 0.35; // -1..1
-      const microSwayWave =
-        Math.sin(t * 0.92 + 0.4) * 0.6 + Math.cos(t * 1.63) * 0.4; // -1..1
+      // --- (B) 連続まばたきカーブの評価 (0.000 .. 1.000) ---
+      if (blinkStartedAt === null && now >= nextBlinkAt) {
+        blinkStartedAt = now;
+        blinkIsDouble = Math.random() < 0.22;
+      }
 
-      // 会話中や相槌（listening）時の軽いうなずき波
-      const nodPulse = isSpeakingLike
-        ? (Math.sin(t * 4.2) * 0.5 + Math.sin(t * 6.7) * 0.5) * curLevel
+      let blinkClosure = 0;
+      if (blinkStartedAt !== null) {
+        const res = evaluateBlinkClosure(now - blinkStartedAt, blinkIsDouble);
+        if (res.finished) {
+          blinkStartedAt = null;
+          nextBlinkAt = now + 2400 + Math.random() * 3400;
+          blinkClosure = 0;
+        } else {
+          blinkClosure = res.closure;
+        }
+      }
+
+      // 会話の盛り上がりに合わせた優しい微笑み目元（0.0 .. 0.25）の滑らかなブレンド
+      const targetSquint =
+        isSpeakingLike && activeLevel > 0.55 ? (activeLevel - 0.55) * 0.55 : 0;
+      smoothEyeSquint += (targetSquint - smoothEyeSquint) * 0.1;
+      const totalEyeClosure = Math.min(1.0, Math.max(blinkClosure, smoothEyeSquint));
+
+      // --- (C) オフスクリーンCanvasにベース画像＋連続補間目元＋連続補間口元を合成 ---
+      offCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+      offCtx.drawImage(atlases.base, 0, 0, CANVAS_W, CANVAS_H);
+
+      // 1. 目元の無段階サブフレーム補間描画 (10段階アトラス + 隣接フレームαブレンド)
+      if (totalEyeClosure > 0.005) {
+        const eyeStepFloat = totalEyeClosure * (EYE_STEPS - 1);
+        const step0 = Math.min(EYE_STEPS - 1, Math.floor(eyeStepFloat));
+        const step1 = Math.min(EYE_STEPS - 1, step0 + 1);
+        const fracEye = eyeStepFloat - step0;
+
+        offCtx.globalAlpha = 1.0;
+        offCtx.drawImage(
+          atlases.eyesAtlas,
+          0,
+          step0 * EYE_RECT.h,
+          EYE_RECT.w,
+          EYE_RECT.h,
+          EYE_RECT.x,
+          EYE_RECT.y,
+          EYE_RECT.w,
+          EYE_RECT.h
+        );
+        if (fracEye > 0.01 && step1 !== step0) {
+          offCtx.globalAlpha = fracEye;
+          offCtx.drawImage(
+            atlases.eyesAtlas,
+            0,
+            step1 * EYE_RECT.h,
+            EYE_RECT.w,
+            EYE_RECT.h,
+            EYE_RECT.x,
+            EYE_RECT.y,
+            EYE_RECT.w,
+            EYE_RECT.h
+          );
+        }
+        offCtx.globalAlpha = 1.0;
+      }
+
+      // 2. 口元の無段階サブフレーム補間描画 (16段階開度 × 3段階母音横幅アトラス + 2次元αブレンド)
+      const colFloat = Math.min(MOUTH_COLS - 1, Math.max(0, smoothOpenY * (MOUTH_COLS - 1)));
+      const col0 = Math.floor(colFloat);
+      const col1 = Math.min(MOUTH_COLS - 1, col0 + 1);
+      const fracCol = colFloat - col0;
+
+      const rowFloat = Math.min(2, Math.max(0, smoothFormRow));
+      const row0 = Math.floor(rowFloat);
+      const row1 = Math.min(2, row0 + 1);
+      const fracRow = rowFloat - row0;
+
+      // 基準フレーム (col0, row0)
+      offCtx.globalAlpha = 1.0;
+      offCtx.drawImage(
+        atlases.mouthAtlas,
+        col0 * MOUTH_RECT.w,
+        row0 * MOUTH_RECT.h,
+        MOUTH_RECT.w,
+        MOUTH_RECT.h,
+        MOUTH_RECT.x,
+        MOUTH_RECT.y,
+        MOUTH_RECT.w,
+        MOUTH_RECT.h
+      );
+      // 開度方向の連続補間 (col1, row0)
+      if (fracCol > 0.01 && col1 !== col0) {
+        offCtx.globalAlpha = fracCol;
+        offCtx.drawImage(
+          atlases.mouthAtlas,
+          col1 * MOUTH_RECT.w,
+          row0 * MOUTH_RECT.h,
+          MOUTH_RECT.w,
+          MOUTH_RECT.h,
+          MOUTH_RECT.x,
+          MOUTH_RECT.y,
+          MOUTH_RECT.w,
+          MOUTH_RECT.h
+        );
+      }
+      // 母音横幅方向の連続補間 (row1)
+      if (fracRow > 0.05 && row1 !== row0 && smoothOpenY > 0.08) {
+        offCtx.globalAlpha = fracRow * 0.65;
+        offCtx.drawImage(
+          atlases.mouthAtlas,
+          col0 * MOUTH_RECT.w,
+          row1 * MOUTH_RECT.h,
+          MOUTH_RECT.w,
+          MOUTH_RECT.h,
+          MOUTH_RECT.x,
+          MOUTH_RECT.y,
+          MOUTH_RECT.w,
+          MOUTH_RECT.h
+        );
+      }
+      offCtx.globalAlpha = 1.0;
+
+      // --- (D) 頭部・首・上半身を独立制御する 2.5D ワープデフォーマ描画 ---
+      // 非周期的な呼吸波と頭部揺らぎ
+      const breathWave = Math.sin(t * 1.55) * 0.65 + Math.sin(t * 0.88 + 1.2) * 0.35;
+      const swayWave = Math.sin(t * 0.95 + 0.5) * 0.6 + Math.cos(t * 1.62) * 0.4;
+
+      // 会話中や相槌中の自然なうなずきターゲット
+      const targetNod = isSpeakingLike
+        ? (0.5 + 0.5 * Math.sin(t * 4.6)) * activeLevel * 5.2
         : curState === 'listening'
-          ? Math.max(0, Math.sin(t * 2.6)) * 0.45
+          ? Math.max(0, Math.sin(t * 2.8)) * 3.2
           : 0;
+      smoothNodY += (targetNod - smoothNodY) * 0.12;
 
-      // 上半身の呼吸による小さな上下動 (px)
-      const bodyOffsetY = breathWave * 2.4 + nodPulse * 3.2;
-      // 自然な左右の微細重心移動 (px)
-      const bodyOffsetX = microSwayWave * (isSpeakingLike ? 1.8 : 1.0);
-      // 首・頭部の微細な傾き（ラジアン: 最大約 ±0.7度 で顔や制服が歪まない範囲）
-      const subtleAngleRad =
-        (microSwayWave * (isSpeakingLike ? 0.55 : 0.28) +
-          (curState === 'listening' ? 0.35 : 0)) *
-        (Math.PI / 180);
+      const targetSwayX = swayWave * (isSpeakingLike ? 3.4 : 1.8);
+      smoothHeadSwayX += (targetSwayX - smoothHeadSwayX) * 0.1;
 
-      // --- (C) Canvas描画 ---
       ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
-      ctx.save();
 
-      // 首元ピボットを中心に微細な傾きと呼吸オフセットを適用
-      ctx.translate(NECK_PIVOT.x + bodyOffsetX, NECK_PIVOT.y + bodyOffsetY);
-      ctx.rotate(subtleAngleRad);
-      ctx.translate(-NECK_PIVOT.x, -NECK_PIVOT.y);
+      // 画面全体を高さ12pxの水平メッシュストリップに分割し、
+      // 「頭部は滑らかにうなずき・揺れ、首で自然に繋がり、肩は呼吸し、ジャケット下端は固定される」
+      // Live2Dワープデフォーマと同等の連続変形を適用
+      const STRIP_H = 12;
+      for (let y = 0; y < CANVAS_H; y += STRIP_H) {
+        const h = Math.min(STRIP_H, CANVAS_H - y);
+        const yMid = y + h * 0.5;
 
-      // 1. ベースキャラクター描画（顔・髪型・制服・スカーフ・名札を完全維持）
-      ctx.drawImage(sprites.base, 0, 0, CANVAS_W, CANVAS_H);
+        // 頭部ウェイト: Y=0..430 は 1.0、Y=430..560（首〜襟元）でコサイン減衰、Y>560 は 0.0
+        let wHead = 0;
+        if (yMid <= 430) {
+          wHead = 1.0;
+        } else if (yMid < 560) {
+          wHead = 0.5 * (1 + Math.cos(Math.PI * ((yMid - 430) / 130)));
+        }
 
-      // 2. 目パーツ描画（自然まばたき、または説明中・笑顔のやわらかい目元）
-      let currentEyeState: EyeBlinkState = eyeStateRef.current;
-      // 会話の盛り上がり時にごくまれに優しい細め目（笑顔感）をブレンド
-      if (currentEyeState === 'open' && isSpeakingLike && curLevel > 0.72 && Math.sin(t * 3.1) > 0.82) {
-        currentEyeState = 'half';
+        // 胸部・肩の呼吸ウェイト: Y=480..880 で滑らかに膨らみ、下端 Y=935 では 0.0（完全固定）
+        const bottomFactor = Math.max(0, Math.min(1, (CANVAS_H - yMid) / 480));
+        const wBreath = Math.sin(bottomFactor * Math.PI * 0.85);
+
+        // 頭頂に近いほど首振りによる水平変位が大きくなる（首の自然な傾き表現）
+        const headLeverage = Math.max(0, (490 - yMid) / 380);
+        const dx = smoothHeadSwayX * wHead * (0.45 + 0.55 * headLeverage);
+        const dy = smoothNodY * wHead + breathWave * 2.2 * wBreath;
+
+        // 呼吸に伴う肩〜胸元の微細な横幅伸縮
+        const scaleX = 1.0 + Math.max(0, breathWave) * 0.0035 * wBreath;
+        const drawW = CANVAS_W * scaleX;
+        const drawX = dx - (drawW - CANVAS_W) * 0.5;
+
+        // ストリップ間の隙間を防ぐため 0.6px オーバーラップ描画
+        ctx.drawImage(
+          offCanvas,
+          0,
+          y,
+          CANVAS_W,
+          h,
+          drawX,
+          y + dy,
+          drawW,
+          h + 0.6
+        );
       }
-      if (currentEyeState !== 'open') {
-        const eyeImg = sprites.eyes[currentEyeState];
-        ctx.drawImage(eyeImg, EYE_RECT.x, EYE_RECT.y, EYE_RECT.w, EYE_RECT.h);
-      }
-
-      // 3. 口パーツ描画（母音 a/i/u/e/o または 閉じた微笑み口 closed）
-      const mouthImg = sprites.mouths[activeMouthShape] || sprites.mouths.closed;
-      ctx.drawImage(mouthImg, MOUTH_RECT.x, MOUTH_RECT.y, MOUTH_RECT.w, MOUTH_RECT.h);
-
-      ctx.restore();
 
       rafId = window.requestAnimationFrame(renderFrame);
     };
@@ -375,12 +456,12 @@ export const SalesCharacter: React.FC<SalesCharacterProps> = ({
     return () => {
       window.cancelAnimationFrame(rafId);
     };
-  }, [spritesReady]);
+  }, [atlasesReady]);
 
   const clampedLevel = Math.min(1, Math.max(0, audioLevel));
   const isSpeakingLike = state === 'speaking' || state === 'introducing_vehicle';
   const displayedVowel: MouthVowelShape =
-    isSpeakingLike && clampedLevel > 0.065 ? vowel : 'closed';
+    isSpeakingLike && clampedLevel > 0.06 ? vowel : 'closed';
 
   return (
     <section
@@ -405,28 +486,26 @@ export const SalesCharacter: React.FC<SalesCharacterProps> = ({
         </div>
       </div>
 
-      {/* キャラクター本体表示エリア（60fps母音リップシンク＆自然まばたきCanvas + フォールバックimg） */}
+      {/* キャラクター本体表示エリア（60fps無段階補間＆2.5DストリップデフォーマCanvas） */}
       <div
         className={`relative w-full max-w-[340px] md:max-w-[380px] aspect-[4/4.2] rounded-2xl overflow-hidden bg-gradient-to-b from-blue-50/70 via-white to-slate-50 border border-blue-100 ring-4 transition-all duration-300 ${cfg.ringClass} flex items-end justify-center`}
       >
-        {/* プリロード完了前およびテスト用の原画フォールバック */}
         <img
           src="/images/dairin_ai_sales_character.png"
           alt="ダイリン AI営業アシスタント（女性営業キャラクター）"
           className={`w-full h-full object-contain object-bottom select-none pointer-events-none ${
-            spritesReady ? 'opacity-0 absolute inset-0' : 'opacity-100'
+            atlasesReady ? 'opacity-0 absolute inset-0' : 'opacity-100'
           }`}
           draggable={false}
         />
 
-        {/* リアルタイム母音リップシンク・自然まばたき・呼吸・うなずき描画Canvas */}
         <canvas
           ref={canvasRef}
           width={CANVAS_W}
           height={CANVAS_H}
           aria-label="ダイリン AI営業キャラクター リアルタイムアニメーション"
           className={`w-full h-full object-contain object-bottom select-none pointer-events-none ${
-            spritesReady ? 'opacity-100' : 'opacity-0 absolute inset-0'
+            atlasesReady ? 'opacity-100' : 'opacity-0 absolute inset-0'
           }`}
         />
 
