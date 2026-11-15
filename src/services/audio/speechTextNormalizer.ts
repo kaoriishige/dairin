@@ -286,10 +286,9 @@ export function splitIntoSpeechChunks(speechText: string, maxChunkLength = 95): 
   const normalized = speechText.trim();
   if (!normalized) return [];
 
-  const sentences = normalized
-    .split(/(?<=[。！？!?])\s*/)
-    .map((s) => s.trim())
-    .filter(Boolean);
+  // iOS Safari 旧バージョンでも構文エラーにならないよう後読み正規表現 (?<=...) を使わずに文分割
+  const rawSentences = normalized.match(/[^。！？!?]+[。！？!?]*/g) || [normalized];
+  const sentences = rawSentences.map((s) => s.trim()).filter(Boolean);
 
   const chunks: string[] = [];
   let buffer = '';

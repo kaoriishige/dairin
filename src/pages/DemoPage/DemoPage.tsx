@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, Lock, Settings, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, Lock, QrCode, Settings, ShieldCheck, X } from 'lucide-react';
 import { ChatPanel } from '../../components/ChatPanel/ChatPanel';
 import { SalesCharacter } from '../../components/SalesCharacter/SalesCharacter';
 import { ServiceMenu } from '../../components/ServiceMenu/ServiceMenu';
@@ -46,11 +46,28 @@ function appendLocalLog<T>(key: string, item: T, maxItems = 50) {
   }
 }
 
+function safeGetSessionStorage(key: string): string {
+  try {
+    return sessionStorage.getItem(key) || '';
+  } catch {
+    return '';
+  }
+}
+
+function safeSetSessionStorage(key: string, value: string) {
+  try {
+    sessionStorage.setItem(key, value);
+  } catch {
+    // ignore in private mode
+  }
+}
+
 export const DemoPage: React.FC<DemoPageProps> = ({ onOpenAdmin }) => {
-  const [passcode, setPasscode] = useState<string>(() => sessionStorage.getItem('dairin_demo_passcode') || '');
+  const [passcode, setPasscode] = useState<string>(() => safeGetSessionStorage('dairin_demo_passcode'));
   const [passcodeInput, setPasscodeInput] = useState('');
   const [passcodeRequired, setPasscodeRequired] = useState(false);
   const [passcodeError, setPasscodeError] = useState<string | null>(null);
+  const [showQrModal, setShowQrModal] = useState(false);
 
   const [company, setCompany] = useState<CompanyInfo | null>(null);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -434,7 +451,7 @@ export const DemoPage: React.FC<DemoPageProps> = ({ onOpenAdmin }) => {
             onSubmit={(e) => {
               e.preventDefault();
               const trimmed = passcodeInput.trim();
-              sessionStorage.setItem('dairin_demo_passcode', trimmed);
+              safeSetSessionStorage('dairin_demo_passcode', trimmed);
               setPasscode(trimmed);
             }}
             className="space-y-3"
@@ -483,14 +500,24 @@ export const DemoPage: React.FC<DemoPageProps> = ({ onOpenAdmin }) => {
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={onOpenAdmin}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-blue-700 bg-slate-100 hover:bg-blue-50 px-3 py-1.5 rounded-lg border border-slate-200 cursor-pointer shrink-0"
-          >
-            <Settings className="w-3.5 h-3.5" />
-            管理画面
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => setShowQrModal(true)}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-700 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg border border-blue-200 cursor-pointer shrink-0"
+            >
+              <QrCode className="w-3.5 h-3.5" />
+              スマホで開く
+            </button>
+            <button
+              type="button"
+              onClick={onOpenAdmin}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-blue-700 bg-slate-100 hover:bg-blue-50 px-3 py-1.5 rounded-lg border border-slate-200 cursor-pointer shrink-0"
+            >
+              <Settings className="w-3.5 h-3.5" />
+              管理画面
+            </button>
+          </div>
         </div>
       </header>
 
@@ -587,6 +614,54 @@ export const DemoPage: React.FC<DemoPageProps> = ({ onOpenAdmin }) => {
           />
         </div>
       </main>
+
+      {/* スマホ用QRコードモーダル */}
+      {showQrModal && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4"
+          onClick={() => setShowQrModal(false)}
+        >
+          <div
+            className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-slate-200 space-y-4 text-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <QrCode className="w-5 h-5 text-blue-700" />
+                スマートフォンで開く
+              </h2>
+              <button
+                type="button"
+                onClick={() => setShowQrModal(false)}
+                className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 cursor-pointer"
+                aria-label="閉じる"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              スマートフォンの標準カメラで下のQRコードを読み取ると、スマホ画面ですぐに開けます。
+            </p>
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex justify-center">
+              <img
+                src="/images/mobile_qr.png"
+                alt="スマホアクセス用QRコード"
+                className="w-48 h-48 object-contain"
+              />
+            </div>
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-2.5 text-xs font-mono text-blue-900 break-all select-all">
+              https://dairin-ai-sales-demo.netlify.app
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowQrModal(false)}
+              className="w-full bg-blue-700 hover:bg-blue-800 text-white font-bold py-2.5 rounded-xl text-sm cursor-pointer"
+            >
+              閉じる
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

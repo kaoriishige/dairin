@@ -38,7 +38,13 @@ interface AdminPayload {
 }
 
 export const AdminPage: React.FC<AdminPageProps> = ({ onBackToDemo }) => {
-  const [adminToken, setAdminToken] = useState(() => sessionStorage.getItem('dairin_admin_token') || '');
+  const [adminToken, setAdminToken] = useState(() => {
+    try {
+      return sessionStorage.getItem('dairin_admin_token') || '';
+    } catch {
+      return '';
+    }
+  });
   const [passwordInput, setPasswordInput] = useState('');
   const [authError, setAuthError] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -108,12 +114,20 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToDemo }) => {
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     const t = passwordInput.trim();
-    sessionStorage.setItem('dairin_admin_token', t);
+    try {
+      sessionStorage.setItem('dairin_admin_token', t);
+    } catch {
+      // ignore
+    }
     setAdminToken(t);
   };
 
   const handleLogout = () => {
-    sessionStorage.removeItem('dairin_admin_token');
+    try {
+      sessionStorage.removeItem('dairin_admin_token');
+    } catch {
+      // ignore
+    }
     setAdminToken('');
     setIsAuthenticated(false);
     setData(null);

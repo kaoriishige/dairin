@@ -23,7 +23,7 @@
     Referrer-Policy = "strict-origin-when-cross-origin"
     Permissions-Policy = "microphone=(self), camera=(), geolocation=()"
     X-Robots-Tag = "noindex, nofollow"
-    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://www.jp-dairin.jp https://*.jp-dairin.jp https://static.wixstatic.com; media-src 'self' blob:; connect-src 'self';"
+    Content-Security-Policy = "default-src 'self' https: data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' data: blob: https:; connect-src 'self' https: blob:;"
 
 [[redirects]]
   from = "/*"
