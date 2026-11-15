@@ -201,23 +201,6 @@ export const SalesCharacter: React.FC<SalesCharacterProps> = ({
           }`}
         />
 
-        {/* キャラクター枠右上の小さな声切り替えプルダウン */}
-        {onChangeVoiceChoice && (
-          <div className="absolute top-2 right-2 z-10">
-            <select
-              id="female-voice-select"
-              aria-label="女性の声を選択"
-              value={voiceChoice}
-              onChange={(e) => onChangeVoiceChoice(e.target.value as FemaleVoiceChoice)}
-              className="rounded-lg border border-blue-200/90 bg-white/90 backdrop-blur-xs px-2 py-1 text-[11px] font-semibold text-slate-700 shadow-xs focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
-            >
-              <option value="fn6Wir86vS59qP6PheHG">声①（標準）</option>
-              <option value="U4eWfk1iaCTV9hveteMg">声②</option>
-              <option value="tmmztcupA9Eu81ix80hq">声③</option>
-            </select>
-          </div>
-        )}
-
         {/* 発話中インジケータ */}
         {isSpeakingLike && (
           <div
@@ -261,6 +244,26 @@ export const SalesCharacter: React.FC<SalesCharacterProps> = ({
       {subtitle && (
         <div className="w-full mt-2 bg-blue-50/80 border border-blue-100 rounded-xl px-3 py-2 text-xs sm:text-sm text-slate-800 leading-relaxed">
           {subtitle}
+        </div>
+      )}
+
+      {/* キャラクター画像の下に声選択プルダウンを配置（顔やイラストに一切かからない位置） */}
+      {onChangeVoiceChoice && (
+        <div className="w-full mt-2 flex items-center justify-end gap-1.5">
+          <label htmlFor="female-voice-select" className="text-[11px] font-semibold text-slate-500">
+            女性の声：
+          </label>
+          <select
+            id="female-voice-select"
+            aria-label="女性の声を選択"
+            value={voiceChoice}
+            onChange={(e) => onChangeVoiceChoice(e.target.value as FemaleVoiceChoice)}
+            className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+          >
+            <option value="fn6Wir86vS59qP6PheHG">声①（標準）</option>
+            <option value="U4eWfk1iaCTV9hveteMg">声②</option>
+            <option value="tmmztcupA9Eu81ix80hq">声③</option>
+          </select>
         </div>
       )}
     </section>

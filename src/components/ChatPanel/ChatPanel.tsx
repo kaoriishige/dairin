@@ -18,14 +18,18 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   isThinking,
   interimTranscript,
 }) => {
-  const bottomRef = useRef<HTMLDivElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // ページ全体が勝手に下へスクロールしてキャラクターが隠れるのを防ぐため、
+    // 会話が2件以上になった時のみチャット枠内部だけをスクロールする
+    if (messages.length > 1 && containerRef.current) {
+      containerRef.current.scrollTop = containerRef.current.scrollHeight;
+    }
   }, [messages, isThinking, interimTranscript]);
 
   return (
-    <div className="flex-1 overflow-y-auto space-y-4 pr-1 py-2">
+    <div ref={containerRef} className="flex-1 overflow-y-auto space-y-4 pr-1 py-2">
       {messages.map((msg) => {
         const isUser = msg.role === 'user';
         const recommendedVehicles = (msg.recommendedVehicleIds ?? [])
@@ -133,8 +137,6 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
           </div>
         </div>
       )}
-
-      <div ref={bottomRef} />
     </div>
   );
 };

@@ -204,6 +204,8 @@ export const DemoPage: React.FC<DemoPageProps> = () => {
       createdAt: new Date().toISOString(),
     };
     setMessages([greetingMsg]);
+    // 会話開始時に画面が一番下へ飛ばず、上部のキャラクターが必ず表示されたままになるよう最上部を維持
+    window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
     void playAssistantVoice(INITIAL_GREETING_SPEECH, 'speaking');
   }, [playAssistantVoice]);
 
