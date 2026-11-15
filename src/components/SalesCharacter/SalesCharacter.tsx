@@ -280,8 +280,8 @@ export const SalesCharacter: React.FC<SalesCharacterProps> = ({
               <option value="voicevox_mochiko_happy">
                 VOICEVOX：もち子さん（喜び・明るい接客ボイス）
               </option>
-              <option value="voicevox_iltan">
-                VOICEVOX：あいえるたん（明るく元気な女性ボイス）
+              <option value="voicevox_metan">
+                VOICEVOX：四国めたん（はっきり聞き取りやすい女性ボイス）
               </option>
               <option value="elevenlabs_female">
                 ElevenLabs：専用女性ボイス（tmmztcupA9Eu81ix80hq）

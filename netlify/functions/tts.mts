@@ -12,13 +12,13 @@ import {
 export type FemaleVoiceOption =
   | 'voicevox_mochiko'
   | 'voicevox_mochiko_happy'
-  | 'voicevox_iltan'
+  | 'voicevox_metan'
   | 'elevenlabs_female';
 
 const VOICEVOX_SPEAKER_MAP: Record<string, number> = {
   voicevox_mochiko: 20, // もち子さん（ノーマル）
   voicevox_mochiko_happy: 79, // もち子さん（喜び）
-  voicevox_iltan: 68, // あいえるたん（ノーマル）
+  voicevox_metan: 2, // 四国めたん（ノーマル）
 };
 
 const ELEVENLABS_FEMALE_VOICE_ID = 'tmmztcupA9Eu81ix80hq';

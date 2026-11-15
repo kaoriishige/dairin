@@ -5,19 +5,19 @@ export type MouthVowelShape = 'closed' | 'a' | 'i' | 'u' | 'e' | 'o';
 export type FemaleVoiceChoice =
   | 'voicevox_mochiko'
   | 'voicevox_mochiko_happy'
-  | 'voicevox_iltan'
+  | 'voicevox_metan'
   | 'elevenlabs_female';
 
 const VOICEVOX_SPEAKER_IDS: Record<string, number> = {
   voicevox_mochiko: 20, // もち子さん（ノーマル）
   voicevox_mochiko_happy: 79, // もち子さん（喜び）
-  voicevox_iltan: 68, // あいえるたん（ノーマル）
+  voicevox_metan: 2, // 四国めたん（ノーマル）
 };
 
 const STATIC_GREETING_URLS: Record<string, string> = {
   voicevox_mochiko: '/audio/greeting_mochiko.mp3?v=1',
   voicevox_mochiko_happy: '/audio/greeting_mochiko_happy.mp3?v=1',
-  voicevox_iltan: '/audio/greeting_iltan.mp3?v=1',
+  voicevox_metan: '/audio/greeting_metan.mp3?v=1',
 };
 
 export interface LiveVoiceMetrics {
