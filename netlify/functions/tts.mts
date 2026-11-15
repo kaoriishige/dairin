@@ -10,57 +10,21 @@ import {
 } from './_shared/security';
 
 export type CuteFemaleVoicePreset =
-  | 'voicevox-tsumugi'
-  | 'voicevox-metan'
   | 'cartesia-suzuka-bright'
-  | 'cartesia-rin-bright';
+  | 'cartesia-rin-bright'
+  | 'cartesia-misaki-bright'
+  | 'cartesia-hina-bright';
 
-async function synthesizeVoicevoxCuteGirl(
-  speakerId: number,
-  text: string
-): Promise<{ ok: boolean; audioBuffer?: Uint8Array; errorDetail?: string }> {
-  try {
-    const initUrl = `https://api.tts.quest/v3/voicevox/synthesis?speaker=${speakerId}&text=${encodeURIComponent(
-      text
-    )}`;
-    const initRes = await fetch(initUrl, { signal: AbortSignal.timeout(6000) });
-    if (!initRes.ok) {
-      return { ok: false, errorDetail: `VOICEVOX init HTTP ${initRes.status}` };
-    }
-    const data = (await initRes.json()) as {
-      success?: boolean;
-      audioStatusUrl?: string;
-      mp3DownloadUrl?: string;
-    };
-    if (!data.success || !data.audioStatusUrl || !data.mp3DownloadUrl) {
-      return { ok: false, errorDetail: 'VOICEVOX init returned unsuccessful payload' };
-    }
-
-    for (let i = 0; i < 22; i++) {
-      const stRes = await fetch(data.audioStatusUrl, { signal: AbortSignal.timeout(4000) });
-      if (stRes.ok) {
-        const st = (await stRes.json()) as { isAudioReady?: boolean; isAudioError?: boolean };
-        if (st.isAudioError) {
-          return { ok: false, errorDetail: 'VOICEVOX synthesis status error' };
-        }
-        if (st.isAudioReady) {
-          const mp3Res = await fetch(data.mp3DownloadUrl, { signal: AbortSignal.timeout(6000) });
-          if (mp3Res.ok) {
-            const arr = await mp3Res.arrayBuffer();
-            if (arr.byteLength > 500) {
-              return { ok: true, audioBuffer: new Uint8Array(arr) };
-            }
-          }
-          break;
-        }
-      }
-      await new Promise((r) => setTimeout(r, 280));
-    }
-    return { ok: false, errorDetail: 'VOICEVOX synthesis timeout' };
-  } catch (err) {
-    return { ok: false, errorDetail: err instanceof Error ? err.message : 'VOICEVOX error' };
-  }
-}
+const CARTESIA_VOICE_IDS: Record<CuteFemaleVoicePreset, string> = {
+  // ① 明るく弾む受付嬢（Suzuka）
+  'cartesia-suzuka-bright': '156fdc17-0578-45d7-b0f4-94ec18d3e07c',
+  // ② 親しみやすい明るい女性（Rin）
+  'cartesia-rin-bright': '7be83d14-4707-43ad-9774-e24eb38320f0',
+  // ③ ハキハキ明るくクリア（Misaki）
+  'cartesia-misaki-bright': 'c433cb19-7a58-47fa-8f86-49414a49e908',
+  // ④ 優しく丁寧で明るい女性（Hina）
+  'cartesia-hina-bright': '7f822e9a-d00c-45fe-84e4-d59a3ac664d4',
+};
 
 async function synthesizeCartesiaJapaneseBright(
   apiKey: string,
@@ -128,6 +92,17 @@ export default async (req: Request, context: Context) => {
     );
   }
 
+  const cartesiaKey = getEnv('CARTESIA_API_KEY', '').trim();
+  if (!cartesiaKey) {
+    return jsonResponse(
+      {
+        error: '音声APIキー（CARTESIA_API_KEY）が未設定のため、文字チャットで継続します。',
+        code: 'TTS_NOT_CONFIGURED',
+      },
+      503
+    );
+  }
+
   const maxChars = Math.min(450, Math.max(80, Number(getEnv('MAX_TTS_CHARS_PER_TURN', '320')) || 320));
 
   let body: { text?: string; voice?: string };
@@ -145,52 +120,13 @@ export default async (req: Request, context: Context) => {
 
   const requestedVoice = body.voice as CuteFemaleVoicePreset | undefined;
   const activePreset: CuteFemaleVoicePreset =
-    requestedVoice &&
-    ['voicevox-tsumugi', 'voicevox-metan', 'cartesia-suzuka-bright', 'cartesia-rin-bright'].includes(
-      requestedVoice
-    )
+    requestedVoice && requestedVoice in CARTESIA_VOICE_IDS
       ? requestedVoice
-      : 'voicevox-tsumugi';
+      : 'cartesia-suzuka-bright';
 
-  const cartesiaKey = getEnv('CARTESIA_API_KEY', '').trim();
-  if (!cartesiaKey) {
-    return jsonResponse(
-      {
-        error: '音声APIキー（CARTESIA_API_KEY）が未設定のため、文字チャットで継続します。',
-        code: 'TTS_NOT_CONFIGURED',
-      },
-      503
-    );
-  }
+  const cartesiaVoiceId = CARTESIA_VOICE_IDS[activePreset];
 
   try {
-    // ①・② 日本の若手女性声優による本物の若い女の子ボイス（VOICEVOX）
-    if (activePreset === 'voicevox-tsumugi' || activePreset === 'voicevox-metan') {
-      const speakerId = activePreset === 'voicevox-tsumugi' ? 8 : 2; // 8: 春日部つむぎ(元気な若い女の子), 2: 四国めたん(明るく可愛い看板娘)
-      const vvResult = await synthesizeVoicevoxCuteGirl(speakerId, text);
-      if (vvResult.ok && vvResult.audioBuffer) {
-        const audioBlob = new Blob([vvResult.audioBuffer as unknown as BlobPart], {
-          type: 'audio/mpeg',
-        });
-        return new Response(audioBlob, {
-          status: 200,
-          headers: {
-            'Content-Type': 'audio/mpeg',
-            'Cache-Control': 'no-store',
-            'X-TTS-Provider': 'voicevox',
-            'X-Voice-Id': activePreset,
-          },
-        });
-      }
-      // 万が一VOICEVOXが混雑していた場合は即座にCartesiaの明るい若い女性音声でバックアップ再生
-    }
-
-    // ③・④ Cartesia Sonic 最新モデル（明るいポジティブ感情最大）
-    const cartesiaVoiceId =
-      activePreset === 'cartesia-rin-bright' || activePreset === 'voicevox-metan'
-        ? '7be83d14-4707-43ad-9774-e24eb38320f0' // Rin (明るく親しみやすい女性)
-        : '156fdc17-0578-45d7-b0f4-94ec18d3e07c'; // Suzuka (明るくハキハキした受付女性)
-
     const cartesiaResult = await synthesizeCartesiaJapaneseBright(
       cartesiaKey,
       cartesiaVoiceId,

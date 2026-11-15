@@ -3,10 +3,10 @@ import { splitIntoSpeechChunks } from './speechTextNormalizer';
 export type MouthVowelShape = 'closed' | 'a' | 'i' | 'u' | 'e' | 'o';
 
 export type FemaleVoiceChoice =
-  | 'voicevox-tsumugi'
-  | 'voicevox-metan'
   | 'cartesia-suzuka-bright'
-  | 'cartesia-rin-bright';
+  | 'cartesia-rin-bright'
+  | 'cartesia-misaki-bright'
+  | 'cartesia-hina-bright';
 
 export interface LiveVoiceMetrics {
   level: number;
@@ -84,7 +84,7 @@ export class ElevenLabsStreamingPlayer {
   private activeObjectUrl: string | null = null;
   private rafId: number | null = null;
   private volume = 0.9;
-  private voiceChoice: FemaleVoiceChoice = 'voicevox-tsumugi';
+  private voiceChoice: FemaleVoiceChoice = 'cartesia-suzuka-bright';
   private isPlayingFlag = false;
   private playbackToken = 0;
 

@@ -88,7 +88,7 @@ export const DemoPage: React.FC<DemoPageProps> = () => {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [showSubtitle, setShowSubtitle] = useState(true);
   const [volume, setVolume] = useState(0.9);
-  const [voiceChoice, setVoiceChoice] = useState<FemaleVoiceChoice>('voicevox-tsumugi');
+  const [voiceChoice, setVoiceChoice] = useState<FemaleVoiceChoice>('cartesia-suzuka-bright');
   const [noticeMessage, setNoticeMessage] = useState<string | null>(null);
 
   const playerRef = useRef<ElevenLabsStreamingPlayer | null>(null);
