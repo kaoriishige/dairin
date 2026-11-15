@@ -2,7 +2,11 @@ import { splitIntoSpeechChunks } from './speechTextNormalizer';
 
 export type MouthVowelShape = 'closed' | 'a' | 'i' | 'u' | 'e' | 'o';
 
-export type FemaleVoiceChoice = 'fn6Wir86vS59qP6PheHG';
+export type FemaleVoiceChoice =
+  | 'ja-JP-Chirp3-HD-Leda'
+  | 'ja-JP-Chirp3-HD-Zephyr'
+  | 'ja-JP-Wavenet-A-cute'
+  | 'ja-JP-Neural2-B-cute';
 
 export interface LiveVoiceMetrics {
   level: number;
@@ -80,7 +84,7 @@ export class ElevenLabsStreamingPlayer {
   private activeObjectUrl: string | null = null;
   private rafId: number | null = null;
   private volume = 0.9;
-  private voiceChoice: FemaleVoiceChoice = 'fn6Wir86vS59qP6PheHG';
+  private voiceChoice: FemaleVoiceChoice = 'ja-JP-Chirp3-HD-Leda';
   private isPlayingFlag = false;
   private playbackToken = 0;
 

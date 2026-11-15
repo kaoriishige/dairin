@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Mic, Sparkles, Volume2, Car, Clock } from 'lucide-react';
 import type { CharacterState } from '../../types';
 import type {
+  FemaleVoiceChoice,
   LiveVoiceMetrics,
   MouthVowelShape,
 } from '../../services/audio/elevenLabsPlayer';
@@ -12,6 +13,8 @@ export interface SalesCharacterProps {
   audioLevel?: number;
   vowel?: MouthVowelShape;
   getLiveVoiceMetrics?: () => LiveVoiceMetrics;
+  voiceChoice?: FemaleVoiceChoice;
+  onChangeVoiceChoice?: (choice: FemaleVoiceChoice) => void;
   subtitle?: string;
   interimTranscript?: string;
 }
@@ -61,6 +64,8 @@ export const SalesCharacter: React.FC<SalesCharacterProps> = ({
   state,
   isSpeaking = false,
   audioLevel = 0,
+  voiceChoice = 'ja-JP-Chirp3-HD-Leda',
+  onChangeVoiceChoice,
   subtitle,
   interimTranscript,
 }) => {
@@ -254,6 +259,27 @@ export const SalesCharacter: React.FC<SalesCharacterProps> = ({
       {subtitle && (
         <div className="w-full mt-2 bg-blue-50/90 border border-blue-200 rounded-xl px-3 py-2.5 text-xs sm:text-sm text-slate-900 leading-relaxed whitespace-pre-wrap shadow-2xs">
           {subtitle}
+        </div>
+      )}
+
+      {/* キャラクター画像の外側（下）に可愛い声の切り替えプルダウンを配置 */}
+      {onChangeVoiceChoice && (
+        <div className="w-full mt-2 flex items-center justify-end gap-1.5">
+          <label htmlFor="female-voice-select" className="text-[11px] font-semibold text-slate-500">
+            女性の声：
+          </label>
+          <select
+            id="female-voice-select"
+            aria-label="女性の声を選択"
+            value={voiceChoice}
+            onChange={(e) => onChangeVoiceChoice(e.target.value as FemaleVoiceChoice)}
+            className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+          >
+            <option value="ja-JP-Chirp3-HD-Leda">① 可愛い・若々しい（Leda HD）</option>
+            <option value="ja-JP-Chirp3-HD-Zephyr">② 明るく元気・可愛い（Zephyr HD）</option>
+            <option value="ja-JP-Wavenet-A-cute">③ 高め・アニメ調（Wavenet-A）</option>
+            <option value="ja-JP-Neural2-B-cute">④ 高め・受付調（Neural2-B）</option>
+          </select>
         </div>
       )}
     </section>

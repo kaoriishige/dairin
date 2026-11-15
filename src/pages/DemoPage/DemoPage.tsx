@@ -8,6 +8,7 @@ import { VoiceControls } from '../../components/VoiceControls/VoiceControls';
 import { useSpeechRecognition } from '../../hooks/useSpeechRecognition';
 import {
   ElevenLabsStreamingPlayer,
+  type FemaleVoiceChoice,
   type MouthVowelShape,
 } from '../../services/audio/elevenLabsPlayer';
 import type {
@@ -87,6 +88,7 @@ export const DemoPage: React.FC<DemoPageProps> = () => {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [showSubtitle, setShowSubtitle] = useState(true);
   const [volume, setVolume] = useState(0.9);
+  const [voiceChoice, setVoiceChoice] = useState<FemaleVoiceChoice>('ja-JP-Chirp3-HD-Leda');
   const [noticeMessage, setNoticeMessage] = useState<string | null>(null);
 
   const playerRef = useRef<ElevenLabsStreamingPlayer | null>(null);
@@ -148,20 +150,6 @@ export const DemoPage: React.FC<DemoPageProps> = () => {
     };
   }, [loadPublicData, passcode]);
 
-  const startAutoListenAfterSpeech = useCallback(() => {
-    if (!sessionActiveRef.current || !speech.isSupported) {
-      setCharacterState('idle');
-      return;
-    }
-    setCharacterState('listening');
-    speech.startListening(
-      (transcript) => {
-        void sendMessageRef.current?.(transcript);
-      },
-      { silentOnAutoError: true }
-    );
-  }, [speech]);
-
   const playAssistantVoice = useCallback(
     async (speechText: string, nextIdleState: CharacterState) => {
       if (!ttsEnabled || ttsCallsCount >= maxTtsCalls) {
@@ -171,7 +159,7 @@ export const DemoPage: React.FC<DemoPageProps> = () => {
         setIsSpeaking(false);
         setAudioLevel(0);
         setCurrentVowel('closed');
-        startAutoListenAfterSpeech();
+        setCharacterState('idle');
         return;
       }
 
@@ -186,16 +174,17 @@ export const DemoPage: React.FC<DemoPageProps> = () => {
           setCurrentVowel(vowelShape ?? 'closed');
         },
         onEnd: () => {
-          // セリフが終わったら即座に口パクを止め、自動でマイク聞き取りへ移行する
+          // セリフが終わったら即座に口パクを止め、待機状態（手動で「マイクで話す」を押す方式）に戻す
           setIsSpeaking(false);
           setAudioLevel(0);
           setCurrentVowel('closed');
-          startAutoListenAfterSpeech();
+          setCharacterState('idle');
         },
         onFallbackToText: (reason) => {
           setIsSpeaking(false);
           setAudioLevel(0);
           setCurrentVowel('closed');
+          setCharacterState('idle');
           setTtsEnabled(false);
           setNoticeMessage(reason);
           appendLocalLog<ErrorLogEntry>('dairin_error_logs', {
@@ -207,7 +196,7 @@ export const DemoPage: React.FC<DemoPageProps> = () => {
         },
       });
     },
-    [maxTtsCalls, passcode, startAutoListenAfterSpeech, ttsCallsCount, ttsEnabled]
+    [maxTtsCalls, passcode, ttsCallsCount, ttsEnabled]
   );
 
   const handleStartSession = useCallback(() => {
@@ -232,8 +221,8 @@ export const DemoPage: React.FC<DemoPageProps> = () => {
     setIsSpeaking(false);
     setAudioLevel(0);
     setCurrentVowel('closed');
-    startAutoListenAfterSpeech();
-  }, [startAutoListenAfterSpeech]);
+    setCharacterState('idle');
+  }, []);
 
   const handleSendMessage = useCallback(
     async (rawText: string) => {
@@ -488,6 +477,11 @@ export const DemoPage: React.FC<DemoPageProps> = () => {
             audioLevel={audioLevel}
             vowel={currentVowel}
             getLiveVoiceMetrics={getLiveVoiceMetrics}
+            voiceChoice={voiceChoice}
+            onChangeVoiceChoice={(choice) => {
+              setVoiceChoice(choice);
+              playerRef.current?.setVoiceChoice(choice);
+            }}
             subtitle={latestAssistantSubtitle}
             interimTranscript={speech.interimTranscript}
           />
