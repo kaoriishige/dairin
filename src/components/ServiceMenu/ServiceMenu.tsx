@@ -21,25 +21,25 @@ export const CONSULTATION_MENU: ConsultationMenuItem[] = [
   {
     id: 'used_car',
     label: '中古車を探す',
-    prompt: '中古車を探しています。おすすめや掲載車両を教えてください。',
+    prompt: '中古車を探しています。相談したいです。',
     Icon: Car,
   },
   {
     id: 'new_car',
     label: '新車を探す',
-    prompt: '新車の購入を検討しています。取り扱いメーカーや相談方法を教えてください。',
+    prompt: '新車の購入を検討しています。相談したいです。',
     Icon: Sparkles,
   },
   {
     id: 'budget_search',
     label: '予算から車を探す',
-    prompt: '予算に合わせて車を探したいです。100万円〜150万円くらいでおすすめはありますか？',
+    prompt: '予算に合わせて車を探したいです。',
     Icon: Wallet,
   },
   {
     id: 'inspection',
     label: '車検・点検の相談',
-    prompt: '車検・点検について相談したいです。軽自動車の車検費用や内容を教えてください。',
+    prompt: '車検・点検について相談したいです。',
     Icon: Wrench,
   },
   {

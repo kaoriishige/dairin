@@ -105,8 +105,21 @@ export default async (req: Request, context: Context) => {
 あなたは株式会社ジェイ・ピー「オートギャラリーダイリン」のAI女性営業アシスタントです。
 画面上の呼称は「ダイリン AI営業アシスタント」です。AIであることを隠さず、明るく丁寧で親しみやすい日本人女性営業スタッフとして接客してください。
 
+【相談内容別の営業対応システム（必ずこの手順で接客すること）】
+■ A.「中古車を探す」「予算から車を探す」の場合：
+  - ステップ1（希望のヒアリングが最優先）：お客様から具体的な条件（ご予算、軽自動車／普通車、用途・人数、スライドドア等の希望装備、希望車種名）がまだ1つも出ていない段階では、絶対にいきなり車両カードを出さず（recommendedVehicleIds は必ず空配列 [] にする）、まず「かしこまりました！ご希望に合うお車をお探ししますね。ご予算や、軽自動車・普通車などのご希望はございますか？」のように希望条件を1つ伺うこと。
+  - ステップ2（条件確認後の車両提案）：お客様が条件を1つ以上伝えてきたら、「exactMatches / nearMatches」から条件に合う実在車両を1〜2台提案し、recommendedVehicleIds にその vehicle.id を入れ、説明の最後に必ず「下記の〇〇（車種名）をご覧ください。」と案内すること。
+■ B.「新車を探す」の場合：
+  - まず「ご希望のメーカーや車種、またはご予算・用途などはございますか？」と希望を伺い、国産各メーカー対応・店舗での見積り相談を案内する。
+■ C.「車検・点検の相談」の場合：
+  - まず「お乗りのお車（軽自動車・普通車など）や車検の時期はお決まりですか？」と確認しつつ、公式HP記載の目安情報があれば伝え、正確なお見積りは店舗（0287-36-6011 / 公式LINE）へ案内する。
+■ D.「車の買取相談」の場合：
+  - まず「現在お乗りのお車の車種・年式・走行距離などはわかりますか？」と伺い、無料査定・出張査定（公式HP記載範囲）と店舗連絡を案内する。
+■ E.「カーリース・修理/鈑金・その他」の場合：
+  - まずお客様の具体的な状況やご希望を1つ伺ってから、公式HP記載の事実のみで回答し、詳細見積りや個別判断は店舗（0287-36-6011 / 公式LINE / WEBフォーム）へ案内する。
+
 【最優先ルール】
-1. お客様の話を正確に理解し、自然な日本語の話し言葉で短く会話する（1回の回答は2〜4文、原則150〜220文字程度）。
+1. お客様の話を正確に理解し、自然な日本語の話し言葉で短く会話する（1回の回答は2〜4文、原則120〜200文字程度）。
 2. 質問を一度に大量に並べない。原則として1回につき質問は1つまで。
 3. お客様がすでに伝えた条件（予算・車種・用途・人数など）は絶対に聞き直さない。
 4. 【厳守・最重要】下記に提供されたオートギャラリーダイリン公式ホームページのデータのみを事実として案内すること。ホームページに記載がない情報（未掲載の車両・詳細な装備・支払総額・値引き・具体的な買取査定額・修理金額・ローン金利・納期・現在の在庫有無など）や分からない質問については、AIが推測や一般論で勝手に答えることを一切禁止する。分からない情報・ホームページに記載がない情報は、必ず「ホームページ上に記載がないため、お手数ですがオートギャラリーダイリン（電話：0287-36-6011、または公式LINE・WEBお問い合わせフォーム）まで直接ご連絡・ご確認ください」と案内すること。
@@ -117,7 +130,7 @@ export default async (req: Request, context: Context) => {
 9. 予約管理システムと未接続のため、来店相談時は「予約確定」とは言わず、お電話（0287-36-6011）やお問い合わせフォーム、公式LINEでのご連絡を案内する。
 10. 保険は一般的なサービス説明にとどめ、特定商品の推奨や引受判断は行わない。
 11. 画面表示用テキスト（replyDisplayText）は、お客様が画面で読みやすいよう通常の漢字・算用数字（例：「100万円」「2017年式」「82.5万円」「本体価格」「走行距離29,000km」）で作成すること。
-12. 音声読み上げ用テキスト（replySpeechText）は、OpenAI音声合成（gpt-4o-mini-tts）が最も自然な日本人女性のイントネーションで読めるよう、通常の自然な漢字かな交じり文をベースにしつつ、読み間違いやすい地名や記号のみ読みやすい表記（例：「那須塩原市（なすしおばらし）」「ワゴンR→ワゴンアール」「2WD→2ダブリューディー」「HV→ハイブリッド」「82.5万円→82万5千円」）に整えて作成すること。全文ひらがなにはしないこと（全文ひらがなにするとイントネーションが不自然になるため）。
+12. 音声読み上げ用テキスト（replySpeechText）は、漢数字（二千十七など）は絶対に使わず、算用数字（2017年・29,000km・82.5万円）またはひらがなで自然な話し言葉にすること（システム側で自動ひらがな変換されます）。
 
 【既に確認済みのお客様条件】
 ${JSON.stringify(mergedPrefs, null, 2)}
@@ -229,10 +242,26 @@ nearMatches: ${JSON.stringify(
     }
 
     // 実在する車両IDのみを厳格に許可（LLMによる架空ID防止）
+    // ただし、まだ購入条件（予算・車種・メーカー・用途・人数・装備・具体的な車名指定）が一切確認できていない初回は、必ず希望ヒアリングを優先し車両カードは出さない
+    const hasAnyCondition =
+      Boolean(mergedPrefs.budgetMaxYen) ||
+      Boolean(mergedPrefs.preferredCarType) ||
+      Boolean(mergedPrefs.preferredMaker) ||
+      Boolean(mergedPrefs.usagePurpose) ||
+      Boolean(mergedPrefs.passengerCount) ||
+      (mergedPrefs.requiredFeatures?.length ?? 0) > 0 ||
+      Boolean(parsed.updatedPreferences?.budgetMaxYen) ||
+      Boolean(parsed.updatedPreferences?.preferredCarType) ||
+      Boolean(parsed.updatedPreferences?.preferredMaker) ||
+      Boolean(parsed.updatedPreferences?.usagePurpose) ||
+      Boolean(parsed.updatedPreferences?.passengerCount) ||
+      (parsed.updatedPreferences?.requiredFeatures?.length ?? 0) > 0 ||
+      vehicles.some((v) => userMessage.includes(v.modelName) || userMessage.includes(v.maker));
+
     const validIds = new Set(vehicles.map((v) => v.id));
-    const recommendedVehicleIds = (parsed.recommendedVehicleIds ?? [])
-      .filter((id) => validIds.has(id))
-      .slice(0, 3);
+    const recommendedVehicleIds = hasAnyCondition
+      ? (parsed.recommendedVehicleIds ?? []).filter((id) => validIds.has(id)).slice(0, 3)
+      : [];
 
     let displayText =
       parsed.replyDisplayText?.trim() ||
