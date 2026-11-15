@@ -5,7 +5,7 @@ import { SalesCharacter } from '../../components/SalesCharacter/SalesCharacter';
 import { ServiceMenu } from '../../components/ServiceMenu/ServiceMenu';
 import { VoiceControls } from '../../components/VoiceControls/VoiceControls';
 import { useSpeechRecognition } from '../../hooks/useSpeechRecognition';
-import { ElevenLabsStreamingPlayer } from '../../services/audio/elevenLabsPlayer';
+import { ElevenLabsStreamingPlayer, type MouthVowelShape } from '../../services/audio/elevenLabsPlayer';
 import type {
   CharacterState,
   ChatMessage,
@@ -17,10 +17,10 @@ import type {
 } from '../../types';
 
 const INITIAL_GREETING =
-  'こんにちは！ オートギャラリー・ダイリンのAI営業アシスタントです。お車の購入や車検、修理など、どんなことでもお気軽にご相談ください！';
+  'こんにちは！ オートギャラリー・ダイリンのAI営業アシスタントです。今日はどのようなお車をお探しですか？';
 
 const INITIAL_GREETING_SPEECH =
-  'こんにちは！オートギャラリー・ダイリンの、エーアイえいぎょうアシスタントです。おくるまのごこうにゅうや、しゃけん、しゅうりなど、どんなことでも、おきがるにごそうだんください！';
+  'こんにちは！オートギャラリー・ダイリンの、エーアイえいぎょうアシスタントです。きょうは、どのようなおくるまをおさがしですか？';
 
 const INITIAL_PREFERENCES: CustomerPreferences = {
   purpose: 'unknown',
@@ -58,6 +58,7 @@ export const DemoPage: React.FC<DemoPageProps> = ({ onOpenAdmin }) => {
   const [conversationId, setConversationId] = useState(() => `conv-${Date.now()}`);
   const [characterState, setCharacterState] = useState<CharacterState>('idle');
   const [audioLevel, setAudioLevel] = useState(0);
+  const [currentVowel, setCurrentVowel] = useState<MouthVowelShape>('closed');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [preferences, setPreferences] = useState<CustomerPreferences>(INITIAL_PREFERENCES);
   const [introducedVehicleIds, setIntroducedVehicleIds] = useState<string[]>([]);
@@ -128,10 +129,14 @@ export const DemoPage: React.FC<DemoPageProps> = ({ onOpenAdmin }) => {
           setIsSpeaking(true);
           setCharacterState(nextIdleState);
         },
-        onAudioLevel: (lvl) => setAudioLevel(lvl),
+        onAudioLevel: (lvl, vowelShape) => {
+          setAudioLevel(lvl);
+          setCurrentVowel(vowelShape ?? 'closed');
+        },
         onEnd: () => {
           setIsSpeaking(false);
           setAudioLevel(0);
+          setCurrentVowel('closed');
           setCharacterState((prev) =>
             prev === 'introducing_vehicle' ? 'introducing_vehicle' : 'idle'
           );
@@ -139,6 +144,7 @@ export const DemoPage: React.FC<DemoPageProps> = ({ onOpenAdmin }) => {
         onFallbackToText: (reason) => {
           setIsSpeaking(false);
           setAudioLevel(0);
+          setCurrentVowel('closed');
           setTtsEnabled(false);
           setNoticeMessage(reason);
           appendLocalLog<ErrorLogEntry>('dairin_error_logs', {
@@ -171,6 +177,7 @@ export const DemoPage: React.FC<DemoPageProps> = ({ onOpenAdmin }) => {
     playerRef.current?.stop();
     setIsSpeaking(false);
     setAudioLevel(0);
+    setCurrentVowel('closed');
     setCharacterState('idle');
   }, []);
 
@@ -181,20 +188,42 @@ export const DemoPage: React.FC<DemoPageProps> = ({ onOpenAdmin }) => {
         setIsSpeaking(true);
         setCharacterState('speaking');
       },
-      onAudioLevel: (lvl) => setAudioLevel(lvl),
+      onAudioLevel: (lvl, vowelShape) => {
+        setAudioLevel(lvl);
+        setCurrentVowel(vowelShape ?? 'closed');
+      },
       onEnd: () => {
         setIsSpeaking(false);
         setAudioLevel(0);
+        setCurrentVowel('closed');
         setCharacterState('idle');
       },
       onFallbackToText: (reason) => {
         setIsSpeaking(false);
         setAudioLevel(0);
+        setCurrentVowel('closed');
         setCharacterState('idle');
         setNoticeMessage(reason);
       },
     });
   }, [speech]);
+
+  const handlePlayTestGreeting = useCallback(() => {
+    speech.stopListening();
+    playerRef.current?.stop();
+    if (!sessionStarted) {
+      setSessionStarted(true);
+    }
+    const testMsg: ChatMessage = {
+      id: `msg-test-${Date.now()}`,
+      role: 'assistant',
+      displayText: INITIAL_GREETING,
+      speechText: INITIAL_GREETING_SPEECH,
+      createdAt: new Date().toISOString(),
+    };
+    setMessages((prev) => (prev.length === 0 ? [testMsg] : [...prev, testMsg]));
+    void playAssistantVoice(INITIAL_GREETING_SPEECH, 'speaking');
+  }, [playAssistantVoice, sessionStarted, speech]);
 
   const handleSendMessage = useCallback(
     async (rawText: string) => {
@@ -205,6 +234,7 @@ export const DemoPage: React.FC<DemoPageProps> = ({ onOpenAdmin }) => {
       playerRef.current?.stop();
       setIsSpeaking(false);
       setAudioLevel(0);
+      setCurrentVowel('closed');
       speech.stopListening();
 
       if (!sessionStarted) {
@@ -313,6 +343,7 @@ export const DemoPage: React.FC<DemoPageProps> = ({ onOpenAdmin }) => {
     playerRef.current?.stop();
     setIsSpeaking(false);
     setAudioLevel(0);
+    setCurrentVowel('closed');
     setCharacterState('listening');
 
     speech.startListening((transcript) => {
@@ -326,6 +357,7 @@ export const DemoPage: React.FC<DemoPageProps> = ({ onOpenAdmin }) => {
     setIsSpeaking(false);
     setIsThinking(false);
     setAudioLevel(0);
+    setCurrentVowel('closed');
     setPreferences(INITIAL_PREFERENCES);
     setIntroducedVehicleIds([]);
     setConversationId(`conv-${Date.now()}`);
@@ -335,7 +367,7 @@ export const DemoPage: React.FC<DemoPageProps> = ({ onOpenAdmin }) => {
       id: `msg-${Date.now()}`,
       role: 'assistant',
       displayText: INITIAL_GREETING,
-      speechText: INITIAL_GREETING,
+      speechText: INITIAL_GREETING_SPEECH,
       createdAt: new Date().toISOString(),
     };
     setMessages([greetingMsg]);
@@ -348,6 +380,7 @@ export const DemoPage: React.FC<DemoPageProps> = ({ onOpenAdmin }) => {
     setIsSpeaking(false);
     setIsThinking(false);
     setAudioLevel(0);
+    setCurrentVowel('closed');
     setSessionStarted(false);
     setMessages([]);
     setPreferences(INITIAL_PREFERENCES);
@@ -448,8 +481,10 @@ export const DemoPage: React.FC<DemoPageProps> = ({ onOpenAdmin }) => {
           <SalesCharacter
             state={speech.isListening ? 'listening' : characterState}
             audioLevel={audioLevel}
+            vowel={currentVowel}
             subtitle={latestAssistantSubtitle}
             onPlaySampleVoice={handlePlaySampleVoice}
+            onPlayTestGreeting={handlePlayTestGreeting}
           />
         </div>
 
