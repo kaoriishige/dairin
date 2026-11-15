@@ -280,6 +280,55 @@ export function normalizeTextForSpeech(rawText: string): string {
 }
 
 /**
+ * Google Cloud Text-to-Speech (ja-JP-Neural2-B) 専用の自然な読み上げ整形。
+ * Google TTS は漢字かな交じり文のままの方がアクセント辞書が正確に効くため、
+ * 一般漢字のひらがな化は行わず、URL・記号・地名・英略語・小数金額のみを自然に整える。
+ */
+export function normalizeTextForGoogleCloudTts(rawText: string): string {
+  let text = rawText;
+
+  text = text.replace(/https?:\/\/[^\s]+/g, '');
+  text = text.replace(/[*_`#>|]/g, '');
+  text = text.replace(/^[\s・\-•]+/gm, '');
+  text = text.replace(/(\d+)\s*[〜～~]\s*(\d+)/g, '$1から$2');
+  text = text.replace(/(\d{1,3}),(\d{3})/g, '$1$2');
+  text = text.replace(/(\d+)\.(\d+)\s*万円/g, (_, intPart, decPart) => {
+    const sub = parseInt(decPart, 10);
+    return sub > 0 ? `${intPart}万${sub}千円` : `${intPart}万円`;
+  });
+
+  const googleRules: Array<[RegExp, string]> = [
+    [/那須塩原市新南/g, 'なすしおばらし 新南'],
+    [/那須塩原市/g, 'なすしおばらし'],
+    [/西那須野店/g, 'にしなすのてん'],
+    [/西那須野/g, 'にしなすの'],
+    [/相田\s*日出男/g, 'あいだ ひでお'],
+    [/ワゴンR/gi, 'ワゴンアール'],
+    [/ムーヴ\s*キャンバス/g, 'ムーブキャンバス'],
+    [/ストライブス\s*G/gi, 'ストライプス ジー'],
+    [/ストライプス\s*G/gi, 'ストライプス ジー'],
+    [/XF\s*2WD/gi, 'エックスエフ 2ダブリューディー'],
+    [/HV\s*Z\s*[2２]WD/gi, 'ハイブリッド ゼット 2ダブリューディー'],
+    [/HV\s*X/gi, 'ハイブリッド エックス'],
+    [/\b2WD\b/gi, '2ダブリューディー'],
+    [/２WD/gi, '2ダブリューディー'],
+    [/\b4WD\b/gi, '4ダブリューディー'],
+    [/\bHV\b/g, 'ハイブリッド'],
+    [/鈑金/g, '板金'],
+  ];
+
+  for (const [pattern, replacement] of googleRules) {
+    text = text.replace(pattern, replacement);
+  }
+
+  return text
+    .replace(/\r?\n+/g, '。')
+    .replace(/。{2,}/g, '。')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
  * 長文を自然な日本語の文単位に分割し、ストリーミング順次再生しやすくする。
  */
 export function splitIntoSpeechChunks(speechText: string, maxChunkLength = 95): string[] {

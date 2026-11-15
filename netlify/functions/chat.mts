@@ -1,7 +1,7 @@
 import type { Config, Context } from '@netlify/functions';
 import OpenAI from 'openai';
 import type { ChatMessage, CustomerPreferences, SalesPurpose } from '../../src/types';
-import { normalizeTextForSpeech } from '../../src/services/audio/speechTextNormalizer';
+import { normalizeTextForGoogleCloudTts } from '../../src/services/audio/speechTextNormalizer';
 import { searchKnowledgeEntries, searchServices } from '../../src/services/knowledge/ragSearch';
 import { parseBudgetYenFromText, searchVehicles } from '../../src/services/vehicles/vehicleSearch';
 import { loadAllKnowledgeData } from './_shared/dataLoader';
@@ -254,7 +254,7 @@ nearMatches: ${JSON.stringify(
       }
     }
 
-    const speechText = normalizeTextForSpeech(rawSpeechText);
+    const speechText = normalizeTextForGoogleCloudTts(rawSpeechText);
 
     const updatedPreferences: CustomerPreferences = {
       ...mergedPrefs,

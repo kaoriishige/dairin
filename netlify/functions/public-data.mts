@@ -23,9 +23,11 @@ export default async (req: Request) => {
 
   try {
     const { company, vehicles, services } = await loadAllKnowledgeData();
+    const googleTtsKey = getEnv('GOOGLE_TTS_API_KEY', '').trim();
     const openaiKey = getEnv('OPENAI_API_KEY', '').trim();
     const ttsEnabled =
-      Boolean(openaiKey) && openaiKey !== 'your_openai_api_key_here';
+      Boolean(googleTtsKey && googleTtsKey !== 'your_google_tts_api_key_here') ||
+      Boolean(openaiKey && openaiKey !== 'your_openai_api_key_here');
 
     return jsonResponse({
       passcodeRequired,
@@ -35,8 +37,8 @@ export default async (req: Request) => {
       services,
       runtime: {
         ttsEnabled,
-        voiceId: getEnv('OPENAI_TTS_VOICE', 'coral'),
-        modelId: 'gpt-4o-mini-tts',
+        voiceId: 'ja-JP-Neural2-B',
+        modelId: 'google-cloud-tts-neural2',
         maxTtsCallsPerSession: Number(getEnv('MAX_TTS_CALLS_PER_SESSION', '25')) || 25,
         maxSessionDurationMinutes: Number(getEnv('MAX_SESSION_DURATION_MINUTES', '20')) || 20,
       },
