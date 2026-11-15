@@ -190,7 +190,7 @@ export const SalesCharacter: React.FC<SalesCharacterProps> = ({
         {/* ② 発話・車両紹介中ループ動画 (character_speaking.mp4：口を開閉して会話) */}
         <video
           ref={speakingVideoRef}
-          src="/videos/character_speaking.mp4?v=4"
+          src="/videos/character_speaking.mp4?v=5"
           poster="/images/dairin_ai_sales_character.png?v=4"
           autoPlay
           loop
