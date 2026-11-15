@@ -6,6 +6,7 @@ export interface SalesCharacterProps {
   state: CharacterState;
   audioLevel?: number; // 0.0 - 1.0 音声レベルに応じた微細な反応用
   subtitle?: string;
+  onPlaySampleVoice?: () => void;
   rendererMode?: 'png_static_motion'; // 将来の 'live2d' / 'lip_sync' 拡張用スロット
 }
 
@@ -54,6 +55,7 @@ export const SalesCharacter: React.FC<SalesCharacterProps> = ({
   state,
   audioLevel = 0,
   subtitle,
+  onPlaySampleVoice,
 }) => {
   const cfg = STATE_CONFIG[state];
   const StatusIcon = cfg.Icon;
@@ -143,7 +145,7 @@ export const SalesCharacter: React.FC<SalesCharacterProps> = ({
       </div>
 
       {/* 下部字幕 / 状態案内 */}
-      <div className="w-full mt-3">
+      <div className="w-full mt-3 space-y-2">
         {subtitle ? (
           <div className="bg-blue-50/80 border border-blue-100 rounded-xl px-3.5 py-2.5 text-sm md:text-base text-slate-800 leading-relaxed min-h-[3.25rem]">
             {subtitle}
@@ -152,6 +154,17 @@ export const SalesCharacter: React.FC<SalesCharacterProps> = ({
           <p className="text-center text-xs md:text-sm text-slate-500 py-2">
             {cfg.subLabel}
           </p>
+        )}
+
+        {onPlaySampleVoice && (
+          <button
+            type="button"
+            onClick={onPlaySampleVoice}
+            className="w-full inline-flex items-center justify-center gap-1.5 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 rounded-xl py-2 px-3 text-xs font-bold transition-colors cursor-pointer"
+          >
+            <Volume2 className="w-4 h-4 text-blue-700 shrink-0" />
+            <span>指定ボイスサンプル（MP3）を再生</span>
+          </button>
         )}
       </div>
     </section>

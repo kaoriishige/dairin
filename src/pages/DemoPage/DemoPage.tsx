@@ -171,6 +171,28 @@ export const DemoPage: React.FC<DemoPageProps> = ({ onOpenAdmin }) => {
     setCharacterState('idle');
   }, []);
 
+  const handlePlaySampleVoice = useCallback(() => {
+    speech.stopListening();
+    void playerRef.current?.playStaticAudioUrl('/audio/dairin_voice_sample.mp3', {
+      onStart: () => {
+        setIsSpeaking(true);
+        setCharacterState('speaking');
+      },
+      onAudioLevel: (lvl) => setAudioLevel(lvl),
+      onEnd: () => {
+        setIsSpeaking(false);
+        setAudioLevel(0);
+        setCharacterState('idle');
+      },
+      onFallbackToText: (reason) => {
+        setIsSpeaking(false);
+        setAudioLevel(0);
+        setCharacterState('idle');
+        setNoticeMessage(reason);
+      },
+    });
+  }, [speech]);
+
   const handleSendMessage = useCallback(
     async (rawText: string) => {
       const text = rawText.trim();
@@ -424,6 +446,7 @@ export const DemoPage: React.FC<DemoPageProps> = ({ onOpenAdmin }) => {
             state={speech.isListening ? 'listening' : characterState}
             audioLevel={audioLevel}
             subtitle={latestAssistantSubtitle}
+            onPlaySampleVoice={handlePlaySampleVoice}
           />
         </div>
 

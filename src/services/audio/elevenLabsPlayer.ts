@@ -86,8 +86,52 @@ export class ElevenLabsStreamingPlayer {
       };
       this.rafId = requestAnimationFrame(tick);
     } catch {
-      // Web Audio API がブロックされた場合は簡易レベル通知にフォールバック
       onLevel(0.45);
+    }
+  }
+
+  public async playStaticAudioUrl(
+    url: string,
+    callbacks: TtsPlaybackCallbacks = {}
+  ): Promise<boolean> {
+    this.stop();
+    const myToken = this.playbackToken;
+    this.isPlayingFlag = true;
+    callbacks.onStart?.();
+
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const audio = new Audio(url);
+        audio.volume = this.volume;
+        this.currentAudio = audio;
+
+        audio.onended = () => {
+          if (this.currentAudio === audio) this.currentAudio = null;
+          resolve();
+        };
+        audio.onerror = () => {
+          if (this.currentAudio === audio) this.currentAudio = null;
+          reject(new Error('サンプル音声の再生に失敗しました。'));
+        };
+
+        this.monitorAudioLevel(audio, callbacks.onAudioLevel);
+        audio.play().catch(reject);
+      });
+
+      if (myToken === this.playbackToken) {
+        this.isPlayingFlag = false;
+        callbacks.onAudioLevel?.(0);
+        callbacks.onEnd?.();
+      }
+      return true;
+    } catch (err) {
+      this.stop();
+      callbacks.onAudioLevel?.(0);
+      callbacks.onFallbackToText?.(
+        err instanceof Error ? err.message : 'サンプル音声の再生中にエラーが発生しました。'
+      );
+      callbacks.onEnd?.();
+      return false;
     }
   }
 

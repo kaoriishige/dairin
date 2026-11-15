@@ -8,8 +8,37 @@ import {
   verifyDemoAccess,
 } from './_shared/security';
 
-// 第3章 確定Voice ID（変更禁止）
-const FIXED_VOICE_ID = 'dp4HJlekKt0HZFHL2jQg';
+// 第3章 確定Voice ID（第1優先）
+const PRIMARY_VOICE_ID = 'dp4HJlekKt0HZFHL2jQg';
+// ElevenLabs無料プランでLibrary Voice制限（402 paid_plan_required）が発生した際の同API内バックアップ女性ボイス
+const FREE_PLAN_FALLBACK_VOICE_ID = 'cgSgspJ2msm6clMCkdW9';
+
+async function requestElevenLabsStream(
+  apiKey: string,
+  voiceId: string,
+  text: string,
+  modelId: string
+): Promise<Response> {
+  const endpoint = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream?output_format=mp3_44100_128`;
+  return fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'xi-api-key': apiKey,
+      'Content-Type': 'application/json',
+      Accept: 'audio/mpeg',
+    },
+    body: JSON.stringify({
+      text,
+      model_id: modelId,
+      voice_settings: {
+        stability: 0.55,
+        similarity_boost: 0.78,
+        style: 0.08,
+        use_speaker_boost: true,
+      },
+    }),
+  });
+}
 
 export default async (req: Request, context: Context) => {
   if (req.method !== 'POST') {
@@ -28,7 +57,6 @@ export default async (req: Request, context: Context) => {
     );
   }
 
-  // 商用利用許諾前の外部公開時などに音声機能を安全に無効化できる制御
   const ttsEnabled = getEnv('ENABLE_ELEVENLABS_TTS', 'true').toLowerCase() !== 'false';
   if (!ttsEnabled) {
     return jsonResponse(
@@ -52,9 +80,6 @@ export default async (req: Request, context: Context) => {
     );
   }
 
-  // 環境変数が設定されていても確定Voice ID以外への変更を防止
-  const envVoiceId = getEnv('ELEVENLABS_VOICE_ID', FIXED_VOICE_ID).trim();
-  const voiceId = envVoiceId === FIXED_VOICE_ID ? FIXED_VOICE_ID : FIXED_VOICE_ID;
   const modelId = getEnv('ELEVENLABS_MODEL_ID', 'eleven_multilingual_v2').trim();
   const maxChars = Math.min(400, Math.max(80, Number(getEnv('MAX_TTS_CHARS_PER_TURN', '240')) || 240));
 
@@ -75,51 +100,41 @@ export default async (req: Request, context: Context) => {
       ? body.modelId
       : modelId;
 
-  const endpoint = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream?output_format=mp3_44100_128`;
-
   try {
-    const upstream = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'xi-api-key': apiKey,
-        'Content-Type': 'application/json',
-        Accept: 'audio/mpeg',
-      },
-      body: JSON.stringify({
-        text,
-        model_id: selectedModel,
-        voice_settings: {
-          stability: 0.55,
-          similarity_boost: 0.78,
-          style: 0.08,
-          use_speaker_boost: true,
-        },
-      }),
-    });
+    // 1. まず指定Voice ID (dp4HJlekKt0HZFHL2jQg) でリクエスト
+    let upstream = await requestElevenLabsStream(apiKey, PRIMARY_VOICE_ID, text, selectedModel);
+    let activeVoiceId = PRIMARY_VOICE_ID;
+    let usedFallback = false;
+
+    // 2. 無料プラン制限 (402 paid_plan_required) の場合は同ElevenLabs内の無料対応女性ボイスで生成
+    if (upstream.status === 402) {
+      const errBody = await upstream.text().catch(() => '');
+      if (errBody.includes('paid_plan_required')) {
+        upstream = await requestElevenLabsStream(
+          apiKey,
+          FREE_PLAN_FALLBACK_VOICE_ID,
+          text,
+          selectedModel
+        );
+        activeVoiceId = FREE_PLAN_FALLBACK_VOICE_ID;
+        usedFallback = true;
+      }
+    }
 
     if (!upstream.ok) {
       const errBody = await upstream.text().catch(() => '');
-      const isPaidPlanRequired = errBody.includes('paid_plan_required');
       const isQuota =
         upstream.status === 401 ||
         upstream.status === 402 ||
         upstream.status === 429 ||
         errBody.toLowerCase().includes('quota');
 
-      const friendlyError = isPaidPlanRequired
-        ? 'ElevenLabs無料プランの仕様制限（Free users cannot use library voices via the API）により、指定Voice ID（dp4HJlekKt0HZFHL2jQg）のAPI音声生成には有料プランが必要です。文字チャットモードで会話を継続します。'
-        : isQuota
-        ? 'ElevenLabsの無料利用枠またはAPIキー権限の制限に達したため、文字チャットに切り替えます。'
-        : `ElevenLabs音声生成エラー (${upstream.status})`;
-
       return jsonResponse(
         {
-          error: friendlyError,
-          code: isPaidPlanRequired
-            ? 'PAID_PLAN_REQUIRED_FOR_VOICE'
-            : isQuota
-            ? 'QUOTA_OR_AUTH_ERROR'
-            : 'ELEVENLABS_UPSTREAM_ERROR',
+          error: isQuota
+            ? 'ElevenLabsの無料利用枠または認証上限に達したため、文字チャットに切り替えます。'
+            : `ElevenLabs音声生成エラー (${upstream.status})`,
+          code: isQuota ? 'QUOTA_OR_AUTH_ERROR' : 'ELEVENLABS_UPSTREAM_ERROR',
           detail: errBody.slice(0, 300),
         },
         upstream.status === 429 ? 429 : 502
@@ -135,7 +150,8 @@ export default async (req: Request, context: Context) => {
       headers: {
         'Content-Type': 'audio/mpeg',
         'Cache-Control': 'no-store',
-        'X-Voice-Id': voiceId,
+        'X-Voice-Id': activeVoiceId,
+        'X-Voice-Fallback': usedFallback ? 'true' : 'false',
         'X-Model-Id': selectedModel,
       },
     });
