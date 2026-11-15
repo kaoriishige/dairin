@@ -172,6 +172,7 @@ export const DemoPage: React.FC<DemoPageProps> = ({ onOpenAdmin }) => {
   );
 
   const handleStartSession = useCallback(() => {
+    playerRef.current?.unlockAudioForMobile();
     setSessionStarted(true);
     setNoticeMessage(null);
     const greetingMsg: ChatMessage = {
@@ -223,6 +224,7 @@ export const DemoPage: React.FC<DemoPageProps> = ({ onOpenAdmin }) => {
   const handlePlayTestGreeting = useCallback(() => {
     speech.stopListening();
     playerRef.current?.stop();
+    playerRef.current?.unlockAudioForMobile();
     if (!sessionStarted) {
       setSessionStarted(true);
     }
@@ -242,8 +244,9 @@ export const DemoPage: React.FC<DemoPageProps> = ({ onOpenAdmin }) => {
       const text = rawText.trim();
       if (!text || isThinking) return;
 
-      // 割り込み処理：再生中の音声・聞き取りを即停止
+      // 割り込み処理：再生中の音声・聞き取りを即停止＋モバイル音声アンロック
       playerRef.current?.stop();
+      playerRef.current?.unlockAudioForMobile();
       setIsSpeaking(false);
       setAudioLevel(0);
       setCurrentVowel('closed');

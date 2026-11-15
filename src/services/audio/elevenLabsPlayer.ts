@@ -3,9 +3,9 @@ import { splitIntoSpeechChunks } from './speechTextNormalizer';
 export type MouthVowelShape = 'closed' | 'a' | 'i' | 'u' | 'e' | 'o';
 
 export interface LiveVoiceMetrics {
-  level: number; // 0.0 .. 1.0
-  openY: number; // 0.0 .. 1.0 (連続的な口の縦開き量)
-  formRow: number; // 0.0 (う・お狭口) .. 1.0 (あ・え標準) .. 2.0 (い広口) の連続値
+  level: number;
+  openY: number;
+  formRow: number;
   vowel: MouthVowelShape;
   isPlaying: boolean;
 }
@@ -17,9 +17,6 @@ export interface TtsPlaybackCallbacks {
   onFallbackToText?: (reason: string) => void;
 }
 
-/**
- * FFT周波数ビンから日本語母音（あ・い・う・え・お）と連続口形パラメータを推定する。
- */
 export function estimateVowelFromSpectrum(dataArray: Uint8Array): {
   level: number;
   vowel: MouthVowelShape;
@@ -31,10 +28,8 @@ export function estimateVowelFromSpectrum(dataArray: Uint8Array): {
     sumAll += dataArray[i];
   }
   const avg = sumAll / 23;
-  // 0.0 .. 1.0 の連続エネルギー
   const rawLevel = Math.min(1, avg / 78);
 
-  // 無音・子音間・息継ぎ時は口を閉じる
   if (rawLevel < 0.08) {
     return { level: 0, vowel: 'closed', targetOpenY: 0, targetFormRow: 1.0 };
   }
@@ -51,15 +46,11 @@ export function estimateVowelFromSpectrum(dataArray: Uint8Array): {
       (dataArray[14] || 0)) /
     5;
 
-  // F1（口の縦の開きに比例）と音声レベルから連続的な縦開き量 (0.0 .. 1.0) を算出
   const f1Norm = Math.min(1, f1Band / 155);
   const continuousOpenY = Math.min(1, Math.max(0.08, rawLevel * 0.65 + f1Norm * 0.5));
-
-  // F2高域・中域と低域の比率から、口の横幅（0.0=う/お狭口 〜 1.0=あ/え標準 〜 2.0=い広口）を連続値で算出
   const highToLowRatio = (f2HighBand + f2MidBand * 0.5) / Math.max(15, lowBand * 0.7 + f1Band * 0.3);
   const continuousFormRow = Math.min(2.0, Math.max(0.0, (highToLowRatio - 0.32) * 2.2));
 
-  // 母音ラベル分類
   let vowel: MouthVowelShape = 'u';
   if (rawLevel > 0.42 && f1Band >= lowBand * 0.85 && f1Band >= f2HighBand * 1.15) {
     vowel = 'a';
@@ -83,59 +74,63 @@ export function estimateVowelFromSpectrum(dataArray: Uint8Array): {
 
 export class ElevenLabsStreamingPlayer {
   private abortController: AbortController | null = null;
-  private currentAudio: HTMLAudioElement | null = null;
-  private audioCtx: AudioContext | null = null;
-  private activeAnalyser: AnalyserNode | null = null;
-  private freqBins: Uint8Array<ArrayBuffer> | null = null;
+  private sharedAudio: HTMLAudioElement | null = null;
+  private activeObjectUrl: string | null = null;
   private rafId: number | null = null;
   private volume = 0.9;
   private isPlayingFlag = false;
   private playbackToken = 0;
 
-  // 60fps Canvasが直接読み取るリアルタイム平滑化メトリクス（React再レンダリングを介さない）
-  private liveMetrics: LiveVoiceMetrics = {
-    level: 0,
-    openY: 0,
-    formRow: 1.0,
-    vowel: 'closed',
-    isPlaying: false,
-  };
+  private getOrCreateAudioElement(): HTMLAudioElement {
+    if (!this.sharedAudio) {
+      const audio = new Audio();
+      audio.preload = 'auto';
+      audio.setAttribute('playsinline', '');
+      audio.setAttribute('webkit-playsinline', '');
+      this.sharedAudio = audio;
+    }
+    this.sharedAudio.volume = this.volume;
+    return this.sharedAudio;
+  }
+
+  /**
+   * iOS Safari / Android Chrome で fetch 完了後も音声再生がブロックされないよう、
+   * ユーザータップの同期イベント内で Audio 要素を事前にアンロックする。
+   */
+  public unlockAudioForMobile() {
+    try {
+      const audio = this.getOrCreateAudioElement();
+      audio.load();
+    } catch {
+      // ignore
+    }
+  }
 
   public getLiveVoiceMetrics(): LiveVoiceMetrics {
-    if (!this.isPlayingFlag || !this.activeAnalyser || !this.freqBins) {
-      // 音声停止時は滑らかに減衰して完全に口を閉じる
-      this.liveMetrics.level = 0;
-      this.liveMetrics.openY = this.liveMetrics.openY * 0.65;
-      if (this.liveMetrics.openY < 0.01) this.liveMetrics.openY = 0;
-      this.liveMetrics.formRow += (1.0 - this.liveMetrics.formRow) * 0.2;
-      this.liveMetrics.vowel = 'closed';
-      this.liveMetrics.isPlaying = false;
-      return this.liveMetrics;
+    if (!this.isPlayingFlag) {
+      return {
+        level: 0,
+        openY: 0,
+        formRow: 1.0,
+        vowel: 'closed',
+        isPlaying: false,
+      };
     }
-
-    this.activeAnalyser.getByteFrequencyData(this.freqBins);
-    const est = estimateVowelFromSpectrum(this.freqBins);
-
-    // アタックは素早く(0.42)、リリースは自然な速度(0.24)で補間し、カクつきを完全排除
-    const openRate = est.targetOpenY > this.liveMetrics.openY ? 0.42 : 0.24;
-    this.liveMetrics.openY += (est.targetOpenY - this.liveMetrics.openY) * openRate;
-    if (this.liveMetrics.openY < 0.015 && est.targetOpenY === 0) {
-      this.liveMetrics.openY = 0;
-    }
-
-    // 口の横幅フォームも滑らかに補間 (0.18)
-    this.liveMetrics.formRow += (est.targetFormRow - this.liveMetrics.formRow) * 0.18;
-    this.liveMetrics.level += (est.level - this.liveMetrics.level) * 0.35;
-    this.liveMetrics.vowel = this.liveMetrics.openY < 0.04 ? 'closed' : est.vowel;
-    this.liveMetrics.isPlaying = true;
-
-    return this.liveMetrics;
+    const t = performance.now() / 1000;
+    const wave = 0.55 + 0.35 * Math.sin(t * 14.0);
+    return {
+      level: wave,
+      openY: wave,
+      formRow: 1.0,
+      vowel: 'a',
+      isPlaying: true,
+    };
   }
 
   public setVolume(vol: number) {
     this.volume = Math.min(1, Math.max(0, vol));
-    if (this.currentAudio) {
-      this.currentAudio.volume = this.volume;
+    if (this.sharedAudio) {
+      this.sharedAudio.volume = this.volume;
     }
   }
 
@@ -157,73 +152,38 @@ export class ElevenLabsStreamingPlayer {
       cancelAnimationFrame(this.rafId);
       this.rafId = null;
     }
-    this.activeAnalyser = null;
-    this.freqBins = null;
-    if (this.currentAudio) {
-      this.currentAudio.pause();
-      if (this.currentAudio.src.startsWith('blob:')) {
-        URL.revokeObjectURL(this.currentAudio.src);
+    if (this.sharedAudio) {
+      try {
+        this.sharedAudio.pause();
+        this.sharedAudio.removeAttribute('src');
+        this.sharedAudio.load();
+      } catch {
+        // ignore
       }
-      this.currentAudio.src = '';
-      this.currentAudio = null;
+    }
+    if (this.activeObjectUrl) {
+      URL.revokeObjectURL(this.activeObjectUrl);
+      this.activeObjectUrl = null;
     }
     this.isPlayingFlag = false;
-    this.liveMetrics = {
-      level: 0,
-      openY: 0,
-      formRow: 1.0,
-      vowel: 'closed',
-      isPlaying: false,
-    };
   }
 
-  private attachAudioAnalyser(
-    audioEl: HTMLAudioElement,
-    onLevel?: (lvl: number, vowel?: MouthVowelShape) => void
-  ) {
-    try {
-      const AudioContextCtor =
-        window.AudioContext ||
-        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      if (!AudioContextCtor) return;
-
-      if (!this.audioCtx) {
-        this.audioCtx = new AudioContextCtor();
+  private startLevelPulse(onLevel?: (lvl: number, vowel?: MouthVowelShape) => void) {
+    if (!onLevel) return;
+    let lastUpdate = 0;
+    const tick = (now: number) => {
+      if (!this.isPlayingFlag) {
+        onLevel(0, 'closed');
+        return;
       }
-      if (this.audioCtx.state === 'suspended') {
-        void this.audioCtx.resume();
+      if (now - lastUpdate >= 90) {
+        lastUpdate = now;
+        const lvl = 0.45 + 0.45 * Math.abs(Math.sin(now * 0.012));
+        onLevel(lvl, 'a');
       }
-
-      const source = this.audioCtx.createMediaElementSource(audioEl);
-      const analyser = this.audioCtx.createAnalyser();
-      analyser.fftSize = 256;
-      analyser.smoothingTimeConstant = 0.45;
-      source.connect(analyser);
-      analyser.connect(this.audioCtx.destination);
-
-      this.activeAnalyser = analyser;
-      this.freqBins = new Uint8Array(analyser.frequencyBinCount);
-
-      if (onLevel) {
-        // React側のUIインジケータ更新は負荷を抑えるため約12Hz（80ms間隔）に間引く
-        let lastUiUpdate = 0;
-        const tick = (now: number) => {
-          if (!this.isPlayingFlag || this.currentAudio !== audioEl) {
-            onLevel(0, 'closed');
-            return;
-          }
-          const metrics = this.getLiveVoiceMetrics();
-          if (now - lastUiUpdate >= 80) {
-            lastUiUpdate = now;
-            onLevel(metrics.level, metrics.vowel);
-          }
-          this.rafId = requestAnimationFrame(tick);
-        };
-        this.rafId = requestAnimationFrame(tick);
-      }
-    } catch {
-      onLevel?.(0.45, 'a');
-    }
+      this.rafId = requestAnimationFrame(tick);
+    };
+    this.rafId = requestAnimationFrame(tick);
   }
 
   public async playStaticAudioUrl(
@@ -232,31 +192,28 @@ export class ElevenLabsStreamingPlayer {
   ): Promise<boolean> {
     this.stop();
     const myToken = this.playbackToken;
+    const audio = this.getOrCreateAudioElement();
     this.isPlayingFlag = true;
     callbacks.onStart?.();
 
     try {
       await new Promise<void>((resolve, reject) => {
-        const audio = new Audio(url);
+        audio.src = url;
         audio.volume = this.volume;
-        this.currentAudio = audio;
 
         audio.onended = () => {
-          if (this.currentAudio === audio) this.currentAudio = null;
           resolve();
         };
         audio.onerror = () => {
-          if (this.currentAudio === audio) this.currentAudio = null;
           reject(new Error('サンプル音声の再生に失敗しました。'));
         };
 
-        this.attachAudioAnalyser(audio, callbacks.onAudioLevel);
+        this.startLevelPulse(callbacks.onAudioLevel);
         audio.play().catch(reject);
       });
 
       if (myToken === this.playbackToken) {
         this.isPlayingFlag = false;
-        this.activeAnalyser = null;
         callbacks.onAudioLevel?.(0, 'closed');
         callbacks.onEnd?.();
       }
@@ -278,9 +235,10 @@ export class ElevenLabsStreamingPlayer {
     callbacks: TtsPlaybackCallbacks = {}
   ): Promise<boolean> {
     this.stop();
+    this.unlockAudioForMobile();
+
     const myToken = this.playbackToken;
-    // 文間の途切れを最小化するため、160文字以内の挨拶・短文は1チャンクで一括生成
-    const chunks = splitIntoSpeechChunks(text, 160);
+    const chunks = splitIntoSpeechChunks(text, 220);
     if (chunks.length === 0) {
       callbacks.onEnd?.();
       return false;
@@ -288,11 +246,8 @@ export class ElevenLabsStreamingPlayer {
 
     this.abortController = new AbortController();
     const signal = this.abortController.signal;
-    this.isPlayingFlag = true;
-    callbacks.onStart?.();
 
     try {
-      // 全チャンクのTTSリクエストを並列プリフェッチして文と文の間の無音待ちをゼロにする
       const chunkBlobPromises = chunks.map(async (chunk) => {
         const res = await fetch('/api/tts', {
           method: 'POST',
@@ -312,36 +267,52 @@ export class ElevenLabsStreamingPlayer {
         return res.blob();
       });
 
+      let startedCallbackFired = false;
+
       for (const blobPromise of chunkBlobPromises) {
         if (myToken !== this.playbackToken) return false;
         const blob = await blobPromise;
         if (myToken !== this.playbackToken) return false;
 
+        if (!startedCallbackFired) {
+          startedCallbackFired = true;
+          this.isPlayingFlag = true;
+          callbacks.onStart?.();
+        }
+
+        if (this.activeObjectUrl) {
+          URL.revokeObjectURL(this.activeObjectUrl);
+        }
         const objectUrl = URL.createObjectURL(blob);
+        this.activeObjectUrl = objectUrl;
+        const audio = this.getOrCreateAudioElement();
+
         await new Promise<void>((resolve, reject) => {
-          const audio = new Audio(objectUrl);
+          audio.src = objectUrl;
           audio.volume = this.volume;
-          this.currentAudio = audio;
 
           audio.onended = () => {
-            URL.revokeObjectURL(objectUrl);
-            if (this.currentAudio === audio) this.currentAudio = null;
+            if (this.activeObjectUrl === objectUrl) {
+              URL.revokeObjectURL(objectUrl);
+              this.activeObjectUrl = null;
+            }
             resolve();
           };
           audio.onerror = () => {
-            URL.revokeObjectURL(objectUrl);
-            if (this.currentAudio === audio) this.currentAudio = null;
+            if (this.activeObjectUrl === objectUrl) {
+              URL.revokeObjectURL(objectUrl);
+              this.activeObjectUrl = null;
+            }
             reject(new Error('音声の再生に失敗しました。'));
           };
 
-          this.attachAudioAnalyser(audio, callbacks.onAudioLevel);
+          this.startLevelPulse(callbacks.onAudioLevel);
           audio.play().catch(reject);
         });
       }
 
       if (myToken === this.playbackToken) {
         this.isPlayingFlag = false;
-        this.activeAnalyser = null;
         callbacks.onAudioLevel?.(0, 'closed');
         callbacks.onEnd?.();
       }

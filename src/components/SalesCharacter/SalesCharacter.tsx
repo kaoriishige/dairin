@@ -66,28 +66,63 @@ export const SalesCharacter: React.FC<SalesCharacterProps> = ({
 
   const idleVideoRef = useRef<HTMLVideoElement | null>(null);
   const speakingVideoRef = useRef<HTMLVideoElement | null>(null);
-  const [videoReady, setVideoReady] = useState(false);
+  const [idleVideoReady, setIdleVideoReady] = useState(false);
+  const [speakingVideoReady, setSpeakingVideoReady] = useState(false);
 
   const isSpeakingLike = state === 'speaking' || state === 'introducing_vehicle';
   const clampedLevel = Math.min(1, Math.max(0, audioLevel));
 
-  // 状態に応じて待機動画(MP4)と発話動画(MP4)をシームレスに再生・切り替え
+  // iOS Safari / Android Chrome 向けに video 要素の muted / playsInline 属性を確実に適用
+  useEffect(() => {
+    const setupMobileVideo = (vid: HTMLVideoElement | null) => {
+      if (!vid) return;
+      vid.muted = true;
+      vid.defaultMuted = true;
+      vid.playsInline = true;
+      vid.setAttribute('muted', '');
+      vid.setAttribute('playsinline', '');
+      vid.setAttribute('webkit-playsinline', '');
+    };
+
+    setupMobileVideo(idleVideoRef.current);
+    setupMobileVideo(speakingVideoRef.current);
+
+    idleVideoRef.current?.play().catch(() => {});
+
+    // スマホで初回タップ時に動画再生を確実にアンロック
+    const unlockOnTouch = () => {
+      if (idleVideoRef.current && idleVideoRef.current.paused) {
+        idleVideoRef.current.play().catch(() => {});
+      }
+    };
+    window.addEventListener('touchstart', unlockOnTouch, { passive: true });
+    window.addEventListener('click', unlockOnTouch, { passive: true });
+    return () => {
+      window.removeEventListener('touchstart', unlockOnTouch);
+      window.removeEventListener('click', unlockOnTouch);
+    };
+  }, []);
+
+  // 状態に応じて待機動画(MP4)と発話動画(MP4)をシームレスに切り替え
   useEffect(() => {
     const idleVid = idleVideoRef.current;
     const speakVid = speakingVideoRef.current;
 
     if (idleVid && idleVid.paused) {
-      idleVid.play().catch(() => {
-        // 自動再生ポリシー制限時はユーザー操作後に再生
-      });
+      idleVid.play().catch(() => {});
     }
 
     if (speakVid) {
       if (isSpeakingLike) {
+        speakVid.muted = true;
         speakVid.play().catch(() => {});
       } else {
         speakVid.pause();
-        speakVid.currentTime = 0;
+        try {
+          speakVid.currentTime = 0;
+        } catch {
+          // ignore if not seekable yet
+        }
       }
     }
   }, [isSpeakingLike]);
@@ -95,69 +130,71 @@ export const SalesCharacter: React.FC<SalesCharacterProps> = ({
   return (
     <section
       aria-label="ダイリン AI営業アシスタント"
-      className="flex flex-col items-center bg-white rounded-2xl border border-blue-100 shadow-sm p-4 md:p-5 h-full justify-between"
+      className="flex flex-col items-center bg-white rounded-2xl border border-blue-100 shadow-sm p-3 sm:p-4 md:p-5 h-full justify-between"
     >
       {/* 上部ステータス */}
-      <div className="w-full flex items-center justify-between gap-2 mb-3">
+      <div className="w-full flex items-center justify-between gap-2 mb-2 sm:mb-3">
         <div>
-          <p className="text-xs font-semibold tracking-wide text-blue-700">
+          <p className="text-[11px] sm:text-xs font-semibold tracking-wide text-blue-700">
             株式会社ジェイ・ピー
           </p>
-          <h2 className="text-base md:text-lg font-bold text-slate-900">
+          <h2 className="text-sm sm:text-base md:text-lg font-bold text-slate-900">
             ダイリン AI営業アシスタント
           </h2>
         </div>
         <div
-          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs md:text-sm font-semibold border ${cfg.badgeClass}`}
+          className={`inline-flex items-center gap-1.5 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full text-xs sm:text-sm font-semibold border ${cfg.badgeClass}`}
         >
-          <StatusIcon className="w-4 h-4 shrink-0" />
+          <StatusIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
           <span>{cfg.label}</span>
         </div>
       </div>
 
-      {/* キャラクター本体表示エリア（待機動画MP4 ⇔ 発話動画MP4 シームレス切り替え） */}
+      {/* キャラクター本体表示エリア（スマホでも見やすいサイズ＆絶対配置で崩れ防止） */}
       <div
-        className={`relative w-full max-w-[340px] md:max-w-[380px] aspect-[4/4.2] rounded-2xl overflow-hidden bg-white border border-blue-100 ring-4 transition-all duration-300 ${cfg.ringClass} flex items-end justify-center`}
+        className={`relative w-full max-w-[260px] sm:max-w-[320px] md:max-w-[380px] aspect-[4/4.2] rounded-2xl overflow-hidden bg-white border border-blue-100 ring-4 transition-all duration-300 ${cfg.ringClass}`}
       >
-        {/* 動画ロード前フォールバック静止画 */}
+        {/* ベース静止画（動画ロード前や省電力モード時でも必ず表示される） */}
         <img
-          src="/images/dairin_ai_sales_character.png?v=2"
+          src="/images/dairin_ai_sales_character.png?v=3"
           alt="ダイリン AI営業アシスタント（女性営業キャラクター）"
-          className={`w-full h-full object-contain object-bottom select-none pointer-events-none transition-opacity duration-200 ${
-            videoReady ? 'opacity-0 absolute inset-0' : 'opacity-100'
-          }`}
+          className="absolute inset-0 w-full h-full object-contain object-bottom select-none pointer-events-none"
           draggable={false}
         />
 
         {/* ① 待機・聞き取り中ループ動画 (character_idle.mp4) */}
         <video
           ref={idleVideoRef}
-          src="/videos/character_idle.mp4?v=1"
-          poster="/images/dairin_ai_sales_character.png?v=2"
+          src="/videos/character_idle.mp4?v=2"
+          poster="/images/dairin_ai_sales_character.png?v=3"
           autoPlay
           loop
           muted
           playsInline
           preload="auto"
-          onLoadedData={() => setVideoReady(true)}
+          onCanPlay={() => setIdleVideoReady(true)}
+          onPlaying={() => setIdleVideoReady(true)}
           aria-label="ダイリン AI営業キャラクター 待機アニメーション動画"
-          className={`w-full h-full object-contain object-bottom select-none pointer-events-none transition-opacity duration-200 ${
-            isSpeakingLike ? 'opacity-0' : 'opacity-100'
+          className={`absolute inset-0 w-full h-full object-contain object-bottom select-none pointer-events-none transition-opacity duration-200 ${
+            idleVideoReady && !isSpeakingLike ? 'opacity-100' : 'opacity-0'
           }`}
         />
 
         {/* ② 発話・車両紹介中ループ動画 (character_speaking.mp4) */}
         <video
           ref={speakingVideoRef}
-          src="/videos/character_speaking.mp4?v=1"
+          src="/videos/character_speaking.mp4?v=2"
+          poster="/images/dairin_ai_sales_character.png?v=3"
           autoPlay
           loop
           muted
           playsInline
           preload="auto"
+          onCanPlay={() => setSpeakingVideoReady(true)}
+          onPlaying={() => setSpeakingVideoReady(true)}
           aria-label="ダイリン AI営業キャラクター 会話アニメーション動画"
           className={`absolute inset-0 w-full h-full object-contain object-bottom select-none pointer-events-none transition-opacity duration-150 ${
-            isSpeakingLike ? 'opacity-100' : 'opacity-0'
+            speakingVideoReady && isSpeakingLike ? 'opacity-100' : 'opacity-0'
           }`}
         />
 
@@ -165,7 +202,7 @@ export const SalesCharacter: React.FC<SalesCharacterProps> = ({
         {isSpeakingLike && (
           <div
             aria-hidden="true"
-            className="absolute bottom-3 right-3 flex items-center gap-2 bg-white/90 backdrop-blur-sm px-2.5 py-1.5 rounded-full border border-blue-200 shadow-sm"
+            className="absolute bottom-2.5 right-2.5 flex items-center gap-2 bg-white/90 backdrop-blur-sm px-2.5 py-1.5 rounded-full border border-blue-200 shadow-sm z-10"
           >
             <span className="text-[11px] font-bold text-blue-800 bg-blue-50 px-1.5 py-0.5 rounded">
               OpenAI音声で会話中
@@ -187,7 +224,7 @@ export const SalesCharacter: React.FC<SalesCharacterProps> = ({
 
         {/* 聞き取り中インジケータ */}
         {state === 'listening' && (
-          <div className="absolute bottom-3 left-3 flex items-center gap-2 bg-emerald-600 text-white px-3 py-1 rounded-full text-xs font-semibold shadow-sm">
+          <div className="absolute bottom-2.5 left-2.5 flex items-center gap-2 bg-emerald-600 text-white px-3 py-1 rounded-full text-xs font-semibold shadow-sm z-10">
             <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
             <span>音声を聞き取り中</span>
           </div>
@@ -195,7 +232,7 @@ export const SalesCharacter: React.FC<SalesCharacterProps> = ({
 
         {/* 思考中インジケータ */}
         {state === 'thinking' && (
-          <div className="absolute bottom-3 left-3 flex items-center gap-2 bg-amber-500 text-white px-3 py-1 rounded-full text-xs font-semibold shadow-sm">
+          <div className="absolute bottom-2.5 left-2.5 flex items-center gap-2 bg-amber-500 text-white px-3 py-1 rounded-full text-xs font-semibold shadow-sm z-10">
             <span className="w-2 h-2 rounded-full bg-white animate-ping" />
             <span>ご案内を準備中…</span>
           </div>
@@ -203,13 +240,13 @@ export const SalesCharacter: React.FC<SalesCharacterProps> = ({
       </div>
 
       {/* 下部字幕 / 状態案内 / 音声・動画テストボタン */}
-      <div className="w-full mt-3 space-y-2">
+      <div className="w-full mt-2.5 sm:mt-3 space-y-2">
         {subtitle ? (
-          <div className="bg-blue-50/80 border border-blue-100 rounded-xl px-3.5 py-2.5 text-sm md:text-base text-slate-800 leading-relaxed min-h-[3.25rem]">
+          <div className="bg-blue-50/80 border border-blue-100 rounded-xl px-3 py-2 sm:px-3.5 sm:py-2.5 text-xs sm:text-sm md:text-base text-slate-800 leading-relaxed min-h-[2.75rem]">
             {subtitle}
           </div>
         ) : (
-          <p className="text-center text-xs md:text-sm text-slate-500 py-2">
+          <p className="text-center text-xs sm:text-sm text-slate-500 py-1.5">
             {cfg.subLabel}
           </p>
         )}
@@ -219,7 +256,7 @@ export const SalesCharacter: React.FC<SalesCharacterProps> = ({
             <button
               type="button"
               onClick={onPlayTestGreeting}
-              className="w-full inline-flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl py-2 px-3 text-xs font-bold transition-colors cursor-pointer shadow-2xs"
+              className="w-full inline-flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl py-2.5 sm:py-2 px-3 text-xs font-bold transition-colors cursor-pointer shadow-2xs"
             >
               <MessageSquareHeart className="w-4 h-4 shrink-0" />
               <span>営業挨拶セリフを再生</span>
@@ -229,7 +266,7 @@ export const SalesCharacter: React.FC<SalesCharacterProps> = ({
             <button
               type="button"
               onClick={onPlaySampleVoice}
-              className="w-full inline-flex items-center justify-center gap-1.5 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 rounded-xl py-2 px-3 text-xs font-bold transition-colors cursor-pointer"
+              className="w-full inline-flex items-center justify-center gap-1.5 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 rounded-xl py-2.5 sm:py-2 px-3 text-xs font-bold transition-colors cursor-pointer"
             >
               <Volume2 className="w-4 h-4 text-blue-700 shrink-0" />
               <span>OpenAIボイスサンプル再生</span>
