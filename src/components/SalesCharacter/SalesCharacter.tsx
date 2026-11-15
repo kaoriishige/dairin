@@ -64,7 +64,7 @@ export const SalesCharacter: React.FC<SalesCharacterProps> = ({
   state,
   isSpeaking = false,
   audioLevel = 0,
-  voiceChoice = 'wavenet-a-bright-1',
+  voiceChoice = 'voicevox-tsumugi',
   onChangeVoiceChoice,
   subtitle,
   interimTranscript,
@@ -275,10 +275,10 @@ export const SalesCharacter: React.FC<SalesCharacterProps> = ({
             onChange={(e) => onChangeVoiceChoice(e.target.value as FemaleVoiceChoice)}
             className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
           >
-            <option value="wavenet-a-bright-1">① 若く明るい高音（ピッチ+6.0）</option>
-            <option value="wavenet-a-bright-2">② さらに若く高め・アニメ調（ピッチ+8.0）</option>
-            <option value="neural2-b-bright">③ 若く明るい受付調（ピッチ+6.5）</option>
-            <option value="standard-a-bright">④ クリアで高い可愛い声（ピッチ+7.0）</option>
+            <option value="voicevox-tsumugi">① 若い女の子・明るく元気（つむぎ）</option>
+            <option value="voicevox-metan">② 若く可愛い・看板娘（めたん）</option>
+            <option value="cartesia-suzuka-bright">③ 明るく弾む受付嬢（Suzuka・高速）</option>
+            <option value="cartesia-rin-bright">④ 親しみやすい明るい女性（Rin・高速）</option>
           </select>
         </div>
       )}

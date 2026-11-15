@@ -3,10 +3,10 @@ import { splitIntoSpeechChunks } from './speechTextNormalizer';
 export type MouthVowelShape = 'closed' | 'a' | 'i' | 'u' | 'e' | 'o';
 
 export type FemaleVoiceChoice =
-  | 'wavenet-a-bright-1'
-  | 'wavenet-a-bright-2'
-  | 'neural2-b-bright'
-  | 'standard-a-bright';
+  | 'voicevox-tsumugi'
+  | 'voicevox-metan'
+  | 'cartesia-suzuka-bright'
+  | 'cartesia-rin-bright';
 
 export interface LiveVoiceMetrics {
   level: number;
@@ -84,7 +84,7 @@ export class ElevenLabsStreamingPlayer {
   private activeObjectUrl: string | null = null;
   private rafId: number | null = null;
   private volume = 0.9;
-  private voiceChoice: FemaleVoiceChoice = 'wavenet-a-bright-1';
+  private voiceChoice: FemaleVoiceChoice = 'voicevox-tsumugi';
   private isPlayingFlag = false;
   private playbackToken = 0;
 
@@ -254,7 +254,7 @@ export class ElevenLabsStreamingPlayer {
     const activeVoice = overrideVoice || this.voiceChoice;
 
     const myToken = this.playbackToken;
-    const chunks = splitIntoSpeechChunks(text, 220);
+    const chunks = splitIntoSpeechChunks(text, 320);
     if (chunks.length === 0) {
       callbacks.onEnd?.();
       return false;

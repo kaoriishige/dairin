@@ -9,73 +9,89 @@ import {
   verifyDemoAccess,
 } from './_shared/security';
 
-export type GoogleCuteVoicePreset =
-  | 'wavenet-a-bright-1'
-  | 'wavenet-a-bright-2'
-  | 'neural2-b-bright'
-  | 'standard-a-bright';
+export type CuteFemaleVoicePreset =
+  | 'voicevox-tsumugi'
+  | 'voicevox-metan'
+  | 'cartesia-suzuka-bright'
+  | 'cartesia-rin-bright';
 
-interface VoicePresetConfig {
-  googleVoiceName: string;
-  speakingRate: number;
-  pitch: number;
+const DEFAULT_CARTESIA_KEY = 'sk_car_zTGM5hftg862RckAb9MJWs';
+
+async function synthesizeVoicevoxCuteGirl(
+  speakerId: number,
+  text: string
+): Promise<{ ok: boolean; audioBuffer?: Uint8Array; errorDetail?: string }> {
+  try {
+    const initUrl = `https://api.tts.quest/v3/voicevox/synthesis?speaker=${speakerId}&text=${encodeURIComponent(
+      text
+    )}`;
+    const initRes = await fetch(initUrl, { signal: AbortSignal.timeout(6000) });
+    if (!initRes.ok) {
+      return { ok: false, errorDetail: `VOICEVOX init HTTP ${initRes.status}` };
+    }
+    const data = (await initRes.json()) as {
+      success?: boolean;
+      audioStatusUrl?: string;
+      mp3DownloadUrl?: string;
+    };
+    if (!data.success || !data.audioStatusUrl || !data.mp3DownloadUrl) {
+      return { ok: false, errorDetail: 'VOICEVOX init returned unsuccessful payload' };
+    }
+
+    for (let i = 0; i < 22; i++) {
+      const stRes = await fetch(data.audioStatusUrl, { signal: AbortSignal.timeout(4000) });
+      if (stRes.ok) {
+        const st = (await stRes.json()) as { isAudioReady?: boolean; isAudioError?: boolean };
+        if (st.isAudioError) {
+          return { ok: false, errorDetail: 'VOICEVOX synthesis status error' };
+        }
+        if (st.isAudioReady) {
+          const mp3Res = await fetch(data.mp3DownloadUrl, { signal: AbortSignal.timeout(6000) });
+          if (mp3Res.ok) {
+            const arr = await mp3Res.arrayBuffer();
+            if (arr.byteLength > 500) {
+              return { ok: true, audioBuffer: new Uint8Array(arr) };
+            }
+          }
+          break;
+        }
+      }
+      await new Promise((r) => setTimeout(r, 280));
+    }
+    return { ok: false, errorDetail: 'VOICEVOX synthesis timeout' };
+  } catch (err) {
+    return { ok: false, errorDetail: err instanceof Error ? err.message : 'VOICEVOX error' };
+  }
 }
 
-const VOICE_PRESETS: Record<GoogleCuteVoicePreset, VoicePresetConfig> = {
-  // ① 若く明るい高音（Wavenet-A ピッチ+6.0・スピード1.18：初期設定）
-  'wavenet-a-bright-1': {
-    googleVoiceName: 'ja-JP-Wavenet-A',
-    speakingRate: 1.18,
-    pitch: 6.0,
-  },
-  // ② さらに若く高め・アニメ調（Wavenet-A ピッチ+8.0・スピード1.20）
-  'wavenet-a-bright-2': {
-    googleVoiceName: 'ja-JP-Wavenet-A',
-    speakingRate: 1.2,
-    pitch: 8.0,
-  },
-  // ③ 若く明るい・受付スタッフ調（Neural2-B ピッチ+6.5・スピード1.18）
-  'neural2-b-bright': {
-    googleVoiceName: 'ja-JP-Neural2-B',
-    speakingRate: 1.18,
-    pitch: 6.5,
-  },
-  // ④ クリアで高い・可愛い声（Standard-A ピッチ+7.0・スピード1.18）
-  'standard-a-bright': {
-    googleVoiceName: 'ja-JP-Standard-A',
-    speakingRate: 1.18,
-    pitch: 7.0,
-  },
-};
-
-async function synthesizeGoogleCloudJapaneseFemale(
+async function synthesizeCartesiaJapaneseBright(
   apiKey: string,
-  presetKey: GoogleCuteVoicePreset,
+  voiceId: string,
   text: string
 ): Promise<{ ok: boolean; status: number; audioBuffer?: Uint8Array; errorDetail?: string }> {
-  const endpoint = `https://texttospeech.googleapis.com/v1/text:synthesize?key=${encodeURIComponent(
-    apiKey
-  )}`;
-
-  const preset = VOICE_PRESETS[presetKey] ?? VOICE_PRESETS['wavenet-a-bright-1'];
-
-  const res = await fetch(endpoint, {
+  const res = await fetch('https://api.cartesia.ai/tts/bytes', {
     method: 'POST',
     headers: {
+      'Cartesia-Version': '2024-06-10',
+      'X-API-Key': apiKey,
       'Content-Type': 'application/json; charset=utf-8',
     },
     body: JSON.stringify({
-      input: { text },
+      model_id: 'sonic-latest',
+      transcript: text,
+      language: 'ja',
       voice: {
-        languageCode: 'ja-JP',
-        name: preset.googleVoiceName,
+        mode: 'id',
+        id: voiceId,
+        __experimental_controls: {
+          speed: 'fast',
+          emotion: ['positivity:highest', 'curiosity:high'],
+        },
       },
-      audioConfig: {
-        audioEncoding: 'MP3',
-        speakingRate: preset.speakingRate,
-        pitch: preset.pitch,
-        // 低音のこもりを除去して明るく若い声質にするEQプロファイル
-        effectsProfileId: ['small-bluetooth-speaker-class-device'],
+      output_format: {
+        container: 'mp3',
+        sample_rate: 44100,
+        bit_rate: 128000,
       },
     }),
   });
@@ -85,16 +101,15 @@ async function synthesizeGoogleCloudJapaneseFemale(
     return { ok: false, status: res.status, errorDetail: errText.slice(0, 300) };
   }
 
-  const data = (await res.json()) as { audioContent?: string };
-  if (!data.audioContent) {
-    return { ok: false, status: 502, errorDetail: 'Empty audioContent from Google Cloud TTS' };
+  const arr = await res.arrayBuffer();
+  if (arr.byteLength < 500) {
+    return { ok: false, status: 502, errorDetail: 'Empty audio from Cartesia' };
   }
 
-  const binary = Buffer.from(data.audioContent, 'base64');
   return {
     ok: true,
     status: 200,
-    audioBuffer: new Uint8Array(binary),
+    audioBuffer: new Uint8Array(arr),
   };
 }
 
@@ -115,18 +130,6 @@ export default async (req: Request, context: Context) => {
     );
   }
 
-  const googleKey = getEnv('GOOGLE_TTS_API_KEY', '').trim();
-  if (!googleKey || googleKey === 'your_google_tts_api_key_here') {
-    return jsonResponse(
-      {
-        error:
-          'Google Cloud TTS APIキー（GOOGLE_TTS_API_KEY）が未設定のため、文字チャットのみで動作しています。',
-        code: 'GOOGLE_TTS_NOT_CONFIGURED',
-      },
-      503
-    );
-  }
-
   const maxChars = Math.min(450, Math.max(80, Number(getEnv('MAX_TTS_CHARS_PER_TURN', '320')) || 320));
 
   let body: { text?: string; voice?: string };
@@ -142,26 +145,63 @@ export default async (req: Request, context: Context) => {
     return jsonResponse({ error: '読み上げテキストが空です。' }, 400);
   }
 
-  const requestedVoice = body.voice as GoogleCuteVoicePreset | undefined;
-  const activePreset: GoogleCuteVoicePreset =
-    requestedVoice && requestedVoice in VOICE_PRESETS
+  const requestedVoice = body.voice as CuteFemaleVoicePreset | undefined;
+  const activePreset: CuteFemaleVoicePreset =
+    requestedVoice &&
+    ['voicevox-tsumugi', 'voicevox-metan', 'cartesia-suzuka-bright', 'cartesia-rin-bright'].includes(
+      requestedVoice
+    )
       ? requestedVoice
-      : 'wavenet-a-bright-1';
+      : 'voicevox-tsumugi';
+
+  const cartesiaKey = getEnv('CARTESIA_API_KEY', DEFAULT_CARTESIA_KEY).trim() || DEFAULT_CARTESIA_KEY;
 
   try {
-    const result = await synthesizeGoogleCloudJapaneseFemale(googleKey, activePreset, text);
-    if (!result.ok || !result.audioBuffer) {
+    // ①・② 日本の若手女性声優による本物の若い女の子ボイス（VOICEVOX）
+    if (activePreset === 'voicevox-tsumugi' || activePreset === 'voicevox-metan') {
+      const speakerId = activePreset === 'voicevox-tsumugi' ? 8 : 2; // 8: 春日部つむぎ(元気な若い女の子), 2: 四国めたん(明るく可愛い看板娘)
+      const vvResult = await synthesizeVoicevoxCuteGirl(speakerId, text);
+      if (vvResult.ok && vvResult.audioBuffer) {
+        const audioBlob = new Blob([vvResult.audioBuffer as unknown as BlobPart], {
+          type: 'audio/mpeg',
+        });
+        return new Response(audioBlob, {
+          status: 200,
+          headers: {
+            'Content-Type': 'audio/mpeg',
+            'Cache-Control': 'no-store',
+            'X-TTS-Provider': 'voicevox',
+            'X-Voice-Id': activePreset,
+          },
+        });
+      }
+      // 万が一VOICEVOXが混雑していた場合は即座にCartesiaの明るい若い女性音声でバックアップ再生
+    }
+
+    // ③・④ Cartesia Sonic 最新モデル（明るいポジティブ感情最大）
+    const cartesiaVoiceId =
+      activePreset === 'cartesia-rin-bright' || activePreset === 'voicevox-metan'
+        ? '7be83d14-4707-43ad-9774-e24eb38320f0' // Rin (明るく親しみやすい女性)
+        : '156fdc17-0578-45d7-b0f4-94ec18d3e07c'; // Suzuka (明るくハキハキした受付女性)
+
+    const cartesiaResult = await synthesizeCartesiaJapaneseBright(
+      cartesiaKey,
+      cartesiaVoiceId,
+      text
+    );
+
+    if (!cartesiaResult.ok || !cartesiaResult.audioBuffer) {
       return jsonResponse(
         {
-          error: `Google Cloud TTS 音声生成エラー (${result.status})`,
-          code: 'GOOGLE_TTS_ERROR',
-          detail: result.errorDetail,
+          error: `音声生成エラー (${cartesiaResult.status})`,
+          code: 'TTS_ERROR',
+          detail: cartesiaResult.errorDetail,
         },
-        result.status === 429 ? 429 : 502
+        502
       );
     }
 
-    const audioBlob = new Blob([result.audioBuffer as unknown as BlobPart], {
+    const audioBlob = new Blob([cartesiaResult.audioBuffer as unknown as BlobPart], {
       type: 'audio/mpeg',
     });
 
@@ -170,7 +210,7 @@ export default async (req: Request, context: Context) => {
       headers: {
         'Content-Type': 'audio/mpeg',
         'Cache-Control': 'no-store',
-        'X-TTS-Provider': 'google-cloud-tts',
+        'X-TTS-Provider': 'cartesia-sonic',
         'X-Voice-Id': activePreset,
       },
     });
