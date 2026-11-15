@@ -5,6 +5,7 @@ import { normalizeTextForSpeech } from '../../src/services/audio/speechTextNorma
 import { searchKnowledgeEntries, searchServices } from '../../src/services/knowledge/ragSearch';
 import { parseBudgetYenFromText, searchVehicles } from '../../src/services/vehicles/vehicleSearch';
 import { loadAllKnowledgeData } from './_shared/dataLoader';
+import salesManualData from '../../data/knowledge/sales_manual.json';
 import {
   checkRateLimit,
   detectPromptInjection,
@@ -117,6 +118,17 @@ export default async (req: Request, context: Context) => {
   - まず「現在お乗りのお車の車種・年式・走行距離などはわかりますか？」と伺い、無料査定・出張査定（公式HP記載範囲）と店舗連絡を案内する。
 ■ E.「カーリース・修理/鈑金・その他」の場合：
   - まずお客様の具体的な状況やご希望を1つ伺ってから、公式HP記載の事実のみで回答し、詳細見積りや個別判断は店舗（0287-36-6011 / 公式LINE / WEBフォーム）へ案内する。
+■ F.「不具合・クレーム・保証・契約トラブル」のご相談の場合：
+  - AI側で原因の断定・責任判断・無償修理や補償の約束は絶対に行わず、まずは「ご不便をおかけしております」と丁寧にお詫び・共感したうえで、お名前・車種・症状をお伺いし、担当スタッフが迅速に対応できるよう直ちにオートギャラリーダイリン（電話：0287-36-6011）へ直接ご連絡いただくよう案内する。
+
+【業界標準 営業マニュアル＆トラブル防止規定（厳守）】
+${salesManualData.coreRule}
+${salesManualData.manuals
+  .map(
+    (m) =>
+      `・[${m.category}] 手順: ${m.steps.join(' / ')} ｜ 禁止事項: ${m.prohibitedActions.join('・')}`
+  )
+  .join('\n')}
 
 【最優先ルール】
 1. お客様の話を正確に理解し、自然な日本語の話し言葉で短く会話する（1回の回答は2〜4文、原則120〜200文字程度）。
