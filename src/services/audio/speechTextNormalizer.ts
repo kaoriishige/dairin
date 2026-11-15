@@ -60,6 +60,57 @@ function numberToJapaneseReading(num: number): string {
   return result || String(num);
 }
 
+function kanjiNumberToInt(kanji: string): number | null {
+  const digits: Record<string, number> = {
+    '〇': 0,
+    '零': 0,
+    '一': 1,
+    '二': 2,
+    '三': 3,
+    '四': 4,
+    '五': 5,
+    '六': 6,
+    '七': 7,
+    '八': 8,
+    '九': 9,
+  };
+  const smallUnits: Record<string, number> = { '十': 10, '百': 100, '千': 1000 };
+  const largeUnits: Record<string, number> = { '万': 10000, '億': 100000000 };
+
+  if (!/[十百千万億]/.test(kanji)) {
+    // 桁並び（例: 二〇一七）
+    let numStr = '';
+    for (const ch of kanji) {
+      if (!(ch in digits)) return null;
+      numStr += String(digits[ch]);
+    }
+    const parsed = parseInt(numStr, 10);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  let total = 0;
+  let chunk = 0;
+  let current = 0;
+
+  for (const ch of kanji) {
+    if (ch in digits) {
+      current = current * 10 + digits[ch];
+    } else if (ch in smallUnits) {
+      chunk += (current || 1) * smallUnits[ch];
+      current = 0;
+    } else if (ch in largeUnits) {
+      chunk += current;
+      total += (chunk || 1) * largeUnits[ch];
+      chunk = 0;
+      current = 0;
+    } else {
+      return null;
+    }
+  }
+
+  return total + chunk + current;
+}
+
 const PRONUNCIATION_MAP: Array<[RegExp, string]> = [
   // 社名・店舗名・地名
   [/オートギャラリー・?ダイリン/g, 'オートギャラリー・ダイリン'],
@@ -233,6 +284,22 @@ export function normalizeTextForSpeech(rawText: string): string {
   text = text.replace(/(\d)．(\d)/g, '$1.$2');
   text = text.replace(/(\d)，(\d)/g, '$1,$2');
 
+  // LLMが生成した漢数字の年式・距離・金額を半角数字へ変換（例: 二千十七年 -> 2017年, 二万九千キロ -> 29000キロ, 八十二万五千円 -> 825000円）
+  text = text.replace(/([〇零一二三四五六七八九十百千万億]+)\s*(ねんしき|ねん|年式|年|まんえん|万円|えん|円|キロ|km|だい|台|にん|人|かげつ|ヶ月|か月)/gi, (full, kanjiPart, unitPart) => {
+    // 「十分」「万が一」などの一般語誤爆を防止
+    if (kanjiPart === '万' || kanjiPart === '十') return full;
+    const val = kanjiNumberToInt(kanjiPart);
+    if (val === null) return full;
+    return `${val}${unitPart}`;
+  });
+  // 2文字以上の複合漢数字（例: 二千十七、二万九千、八十二万五千）で十・百・千・万を含むもの
+  text = text.replace(/[〇零一二三四五六七八九十百千万億]{2,}/g, (kanjiPart) => {
+    if (!/[十百千万億]/.test(kanjiPart)) return kanjiPart;
+    if (/^(十分|万一|万全|百円|千万|一切|一十)/.test(kanjiPart)) return kanjiPart;
+    const val = kanjiNumberToInt(kanjiPart);
+    return val !== null ? String(val) : kanjiPart;
+  });
+
   // URLを削除
   text = text.replace(/https?:\/\/[^\s]+/g, '');
   // Markdownの装飾記号を削除
@@ -283,16 +350,26 @@ export function normalizeTextForSpeech(rawText: string): string {
     return `、${numberToJapaneseReading(n)}えん、`;
   });
 
-  // 年式（例: 2018年 -> 、にせんじゅうはちねん、）
-  text = text.replace(/(\d{4})\s*年/g, (_, numStr) => {
+  // 走行距離 km / キロ（例: 44000km / 29000キロ -> 、よんまんよんせんキロ、）
+  text = text.replace(/(\d+)\s*(?:km|キロ)/gi, (_, numStr) => {
+    const n = parseInt(numStr, 10);
+    return `、${numberToJapaneseReading(n)}キロ、`;
+  });
+
+  // 年式（2017年式 / 2017ねんしき -> 、にせんじゅうななねんしき、）
+  text = text.replace(/(\d{4})\s*(?:ねんしき|年式)/g, (_, numStr) => {
+    const n = parseInt(numStr, 10);
+    return `、${numberToJapaneseReading(n)}ねんしき、`;
+  });
+  text = text.replace(/(\d{4})\s*(?:ねん|年)/g, (_, numStr) => {
     const n = parseInt(numStr, 10);
     return `、${numberToJapaneseReading(n)}ねん、`;
   });
 
-  // 走行距離 km（例: 44000km -> 、よんまんよんせんキロ、）
-  text = text.replace(/(\d+)\s*km/gi, (_, numStr) => {
+  // ひらがな「えん」が付いた数値（例: 825000えん -> 、はちじゅうにまんごせんえん、）
+  text = text.replace(/(\d+)\s*えん/g, (_, numStr) => {
     const n = parseInt(numStr, 10);
-    return `、${numberToJapaneseReading(n)}キロ、`;
+    return `、${numberToJapaneseReading(n)}えん、`;
   });
 
   // 排気量 cc
