@@ -1,4 +1,5 @@
 import type { Config, Context } from '@netlify/functions';
+import { normalizeTextForSpeech } from '../../src/services/audio/speechTextNormalizer';
 import {
   checkRateLimit,
   getClientIp,
@@ -90,7 +91,8 @@ export default async (req: Request, context: Context) => {
     return jsonResponse({ error: 'リクエスト形式が不正です。' }, 400);
   }
 
-  const text = sanitizeUserInput(body.text || '', maxChars);
+  const rawText = sanitizeUserInput(body.text || '', maxChars);
+  const text = normalizeTextForSpeech(rawText);
   if (!text) {
     return jsonResponse({ error: '読み上げテキストが空です。' }, 400);
   }

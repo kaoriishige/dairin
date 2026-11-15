@@ -19,6 +19,9 @@ import type {
 const INITIAL_GREETING =
   'こんにちは！ オートギャラリー・ダイリンのAI営業アシスタントです。お車の購入や車検、修理など、どんなことでもお気軽にご相談ください！';
 
+const INITIAL_GREETING_SPEECH =
+  'こんにちは！オートギャラリー・ダイリンの、エーアイえいぎょうアシスタントです。おくるまのごこうにゅうや、しゃけん、しゅうりなど、どんなことでも、おきがるにごそうだんください！';
+
 const INITIAL_PREFERENCES: CustomerPreferences = {
   purpose: 'unknown',
   requiredFeatures: [],
@@ -157,11 +160,11 @@ export const DemoPage: React.FC<DemoPageProps> = ({ onOpenAdmin }) => {
       id: `msg-${Date.now()}`,
       role: 'assistant',
       displayText: INITIAL_GREETING,
-      speechText: INITIAL_GREETING,
+      speechText: INITIAL_GREETING_SPEECH,
       createdAt: new Date().toISOString(),
     };
     setMessages([greetingMsg]);
-    void playAssistantVoice(INITIAL_GREETING, 'speaking');
+    void playAssistantVoice(INITIAL_GREETING_SPEECH, 'speaking');
   }, [playAssistantVoice]);
 
   const handleStopSpeaking = useCallback(() => {

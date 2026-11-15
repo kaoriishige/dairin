@@ -50,13 +50,14 @@ describe('オートギャラリーダイリン AI営業システム 検証テス
     expect(discrepanciesData.some((d) => d.field.includes('営業時間'))).toBe(true);
   });
 
-  it('音声読み上げ用テキスト正規化：URL・記号除去と車種名・専門用語の読み変換が行われること', () => {
-    const raw = '詳しくは https://www.jp-dairin.jp/ をご覧ください。\n・ワゴンRと鈑金・支払総額についてご案内します！';
+  it('音声読み上げ用テキスト正規化：URL・記号除去と車種名・専門用語・金額のひらがな/カタカナ読み変換が行われること', () => {
+    const raw = '詳しくは https://www.jp-dairin.jp/ をご覧ください。\n・ワゴンR（82.5万円）と鈑金・支払総額についてご案内します！';
     const speech = normalizeTextForSpeech(raw);
     expect(speech).not.toContain('https://');
     expect(speech).toContain('ワゴンアール');
-    expect(speech).toContain('板金');
-    expect(speech).toContain('お支払い総額');
+    expect(speech).toContain('はちじゅうにまんごせんえん');
+    expect(speech).toContain('ばんきん');
+    expect(speech).toContain('おしはらいそうがく');
 
     const chunks = splitIntoSpeechChunks(speech, 40);
     expect(chunks.length).toBeGreaterThanOrEqual(1);
