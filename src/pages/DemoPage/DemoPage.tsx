@@ -20,7 +20,7 @@ const INITIAL_GREETING =
   'こんにちは！ オートギャラリー・ダイリンのAI営業アシスタントです。今日はどのようなお車をお探しですか？';
 
 const INITIAL_GREETING_SPEECH =
-  'こんにちは！オートギャラリー・ダイリンの、エーアイえいぎょうアシスタントです。きょうは、どのようなおくるまをおさがしですか？';
+  'こんにちは！ オートギャラリー・ダイリンのAI営業アシスタントです。今日はどのようなお車をお探しですか？';
 
 const INITIAL_PREFERENCES: CustomerPreferences = {
   purpose: 'unknown',

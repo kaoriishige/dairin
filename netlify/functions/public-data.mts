@@ -23,10 +23,9 @@ export default async (req: Request) => {
 
   try {
     const { company, vehicles, services } = await loadAllKnowledgeData();
+    const openaiKey = getEnv('OPENAI_API_KEY', '').trim();
     const ttsEnabled =
-      getEnv('ENABLE_ELEVENLABS_TTS', 'true').toLowerCase() !== 'false' &&
-      Boolean(getEnv('ELEVENLABS_API_KEY', '').trim()) &&
-      getEnv('ELEVENLABS_API_KEY', '').trim() !== 'your_elevenlabs_api_key_here';
+      Boolean(openaiKey) && openaiKey !== 'your_openai_api_key_here';
 
     return jsonResponse({
       passcodeRequired,
@@ -36,8 +35,8 @@ export default async (req: Request) => {
       services,
       runtime: {
         ttsEnabled,
-        voiceId: 'tmmztcupA9Eu81ix80hq',
-        modelId: getEnv('ELEVENLABS_MODEL_ID', 'eleven_multilingual_v2'),
+        voiceId: getEnv('OPENAI_TTS_VOICE', 'coral'),
+        modelId: 'gpt-4o-mini-tts',
         maxTtsCallsPerSession: Number(getEnv('MAX_TTS_CALLS_PER_SESSION', '25')) || 25,
         maxSessionDurationMinutes: Number(getEnv('MAX_SESSION_DURATION_MINUTES', '20')) || 20,
       },

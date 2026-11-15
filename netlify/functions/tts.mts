@@ -9,35 +9,32 @@ import {
   verifyDemoAccess,
 } from './_shared/security';
 
-// 確定Voice ID（ご自身のアカウントで作成された営業女性ボイス：無料プランAPIでも直接利用可能）
-const PRIMARY_VOICE_ID = 'tmmztcupA9Eu81ix80hq';
-// ElevenLabs無料プランでLibrary Voice制限（402 paid_plan_required）が発生した際の同API内バックアップ女性ボイス
-const FREE_PLAN_FALLBACK_VOICE_ID = 'cgSgspJ2msm6clMCkdW9';
+const OPENAI_TTS_INSTRUCTIONS =
+  '日本の自動車販売店「オートギャラリー・ダイリン」の明るく丁寧で親しみやすい日本人女性営業スタッフとして、自然な日本語のイントネーションと聞き取りやすい落ち着いたテンポで話してください。';
 
-async function requestElevenLabsStream(
+async function requestOpenAiSpeech(
   apiKey: string,
-  voiceId: string,
   text: string,
-  modelId: string
+  model: string,
+  voice: string
 ): Promise<Response> {
-  const endpoint = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream?output_format=mp3_44100_128`;
-  return fetch(endpoint, {
+  const payload: Record<string, unknown> = {
+    model,
+    voice,
+    input: text,
+    response_format: 'mp3',
+  };
+  if (model === 'gpt-4o-mini-tts') {
+    payload.instructions = OPENAI_TTS_INSTRUCTIONS;
+  }
+
+  return fetch('https://api.openai.com/v1/audio/speech', {
     method: 'POST',
     headers: {
-      'xi-api-key': apiKey,
+      Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
-      Accept: 'audio/mpeg',
     },
-    body: JSON.stringify({
-      text,
-      model_id: modelId,
-      voice_settings: {
-        stability: 0.55,
-        similarity_boost: 0.78,
-        style: 0.08,
-        use_speaker_boost: true,
-      },
-    }),
+    body: JSON.stringify(payload),
   });
 }
 
@@ -58,35 +55,23 @@ export default async (req: Request, context: Context) => {
     );
   }
 
-  const ttsEnabled = getEnv('ENABLE_ELEVENLABS_TTS', 'true').toLowerCase() !== 'false';
-  if (!ttsEnabled) {
-    return jsonResponse(
-      {
-        error: '現在、公開モード設定により音声再生は無効化されています（文字チャットをご利用いただけます）。',
-        code: 'TTS_DISABLED',
-      },
-      503
-    );
-  }
-
-  const apiKey = getEnv('ELEVENLABS_API_KEY', '').trim();
-  if (!apiKey || apiKey === 'your_elevenlabs_api_key_here') {
+  const openaiKey = getEnv('OPENAI_API_KEY', '').trim();
+  if (!openaiKey || openaiKey === 'your_openai_api_key_here') {
     return jsonResponse(
       {
         error:
-          'ElevenLabs APIキー（ELEVENLABS_API_KEY）が未設定のため、文字チャットのみで動作しています。',
-        code: 'ELEVENLABS_NOT_CONFIGURED',
+          'OpenAI APIキー（OPENAI_API_KEY）が未設定のため、文字チャットのみで動作しています。',
+        code: 'OPENAI_NOT_CONFIGURED',
       },
       503
     );
   }
 
-  const modelId = getEnv('ELEVENLABS_MODEL_ID', 'eleven_multilingual_v2').trim();
-  const maxChars = Math.min(400, Math.max(80, Number(getEnv('MAX_TTS_CHARS_PER_TURN', '240')) || 240));
+  const maxChars = Math.min(450, Math.max(80, Number(getEnv('MAX_TTS_CHARS_PER_TURN', '320')) || 320));
 
-  let body: { text?: string; modelId?: string };
+  let body: { text?: string; voice?: string };
   try {
-    body = (await req.json()) as { text?: string; modelId?: string };
+    body = (await req.json()) as { text?: string; voice?: string };
   } catch {
     return jsonResponse({ error: 'リクエスト形式が不正です。' }, 400);
   }
@@ -97,46 +82,24 @@ export default async (req: Request, context: Context) => {
     return jsonResponse({ error: '読み上げテキストが空です。' }, 400);
   }
 
-  const selectedModel =
-    body.modelId && ['eleven_multilingual_v2', 'eleven_flash_v2_5', 'eleven_v4_turbo'].includes(body.modelId)
-      ? body.modelId
-      : modelId;
+  const voice = body.voice || getEnv('OPENAI_TTS_VOICE', 'coral').trim() || 'coral';
 
   try {
-    // 1. まず指定Voice ID (dp4HJlekKt0HZFHL2jQg) でリクエスト
-    let upstream = await requestElevenLabsStream(apiKey, PRIMARY_VOICE_ID, text, selectedModel);
-    let activeVoiceId = PRIMARY_VOICE_ID;
-    let usedFallback = false;
+    let upstream = await requestOpenAiSpeech(openaiKey, text, 'gpt-4o-mini-tts', voice);
+    let activeModel = 'gpt-4o-mini-tts';
 
-    // 2. 無料プラン制限 (402 paid_plan_required) の場合は同ElevenLabs内の無料対応女性ボイスで生成
-    if (upstream.status === 402) {
-      const errBody = await upstream.text().catch(() => '');
-      if (errBody.includes('paid_plan_required')) {
-        upstream = await requestElevenLabsStream(
-          apiKey,
-          FREE_PLAN_FALLBACK_VOICE_ID,
-          text,
-          selectedModel
-        );
-        activeVoiceId = FREE_PLAN_FALLBACK_VOICE_ID;
-        usedFallback = true;
-      }
+    if (!upstream.ok) {
+      // フォールバックとして tts-1 (nova) を試行
+      upstream = await requestOpenAiSpeech(openaiKey, text, 'tts-1', 'nova');
+      activeModel = 'tts-1';
     }
 
     if (!upstream.ok) {
       const errBody = await upstream.text().catch(() => '');
-      const isQuota =
-        upstream.status === 401 ||
-        upstream.status === 402 ||
-        upstream.status === 429 ||
-        errBody.toLowerCase().includes('quota');
-
       return jsonResponse(
         {
-          error: isQuota
-            ? 'ElevenLabsの無料利用枠または認証上限に達したため、文字チャットに切り替えます。'
-            : `ElevenLabs音声生成エラー (${upstream.status})`,
-          code: isQuota ? 'QUOTA_OR_AUTH_ERROR' : 'ELEVENLABS_UPSTREAM_ERROR',
+          error: `OpenAI音声生成エラー (${upstream.status})`,
+          code: 'OPENAI_TTS_ERROR',
           detail: errBody.slice(0, 300),
         },
         upstream.status === 429 ? 429 : 502
@@ -152,16 +115,16 @@ export default async (req: Request, context: Context) => {
       headers: {
         'Content-Type': 'audio/mpeg',
         'Cache-Control': 'no-store',
-        'X-Voice-Id': activeVoiceId,
-        'X-Voice-Fallback': usedFallback ? 'true' : 'false',
-        'X-Model-Id': selectedModel,
+        'X-TTS-Provider': 'openai',
+        'X-Model-Id': activeModel,
+        'X-Voice-Id': voice,
       },
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     return jsonResponse(
       {
-        error: 'ElevenLabsへの接続中に通信エラーが発生しました。',
+        error: 'OpenAI音声サーバーへの接続中に通信エラーが発生しました。',
         detail: message,
       },
       502
