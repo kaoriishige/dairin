@@ -99,18 +99,27 @@ export default async (req: Request, context: Context) => {
 
     if (!upstream.ok) {
       const errBody = await upstream.text().catch(() => '');
+      const isPaidPlanRequired = errBody.includes('paid_plan_required');
       const isQuota =
         upstream.status === 401 ||
         upstream.status === 402 ||
         upstream.status === 429 ||
         errBody.toLowerCase().includes('quota');
 
+      const friendlyError = isPaidPlanRequired
+        ? 'ElevenLabs無料プランの仕様制限（Free users cannot use library voices via the API）により、指定Voice ID（dp4HJlekKt0HZFHL2jQg）のAPI音声生成には有料プランが必要です。文字チャットモードで会話を継続します。'
+        : isQuota
+        ? 'ElevenLabsの無料利用枠またはAPIキー権限の制限に達したため、文字チャットに切り替えます。'
+        : `ElevenLabs音声生成エラー (${upstream.status})`;
+
       return jsonResponse(
         {
-          error: isQuota
-            ? 'ElevenLabsの無料利用枠または認証上限に達したため、文字チャットに切り替えます。'
-            : `ElevenLabs音声生成エラー (${upstream.status})`,
-          code: isQuota ? 'QUOTA_OR_AUTH_ERROR' : 'ELEVENLABS_UPSTREAM_ERROR',
+          error: friendlyError,
+          code: isPaidPlanRequired
+            ? 'PAID_PLAN_REQUIRED_FOR_VOICE'
+            : isQuota
+            ? 'QUOTA_OR_AUTH_ERROR'
+            : 'ELEVENLABS_UPSTREAM_ERROR',
           detail: errBody.slice(0, 300),
         },
         upstream.status === 429 ? 429 : 502
