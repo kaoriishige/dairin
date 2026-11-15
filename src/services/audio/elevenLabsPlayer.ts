@@ -72,14 +72,25 @@ export function estimateVowelFromSpectrum(dataArray: Uint8Array): {
   };
 }
 
+export type FemaleVoiceChoice = 'elevenlabs_female' | 'openai_nova' | 'openai_shimmer';
+
 export class ElevenLabsStreamingPlayer {
   private abortController: AbortController | null = null;
   private sharedAudio: HTMLAudioElement | null = null;
   private activeObjectUrl: string | null = null;
   private rafId: number | null = null;
   private volume = 0.9;
+  private voiceChoice: FemaleVoiceChoice = 'elevenlabs_female';
   private isPlayingFlag = false;
   private playbackToken = 0;
+
+  public setVoiceChoice(choice: FemaleVoiceChoice) {
+    this.voiceChoice = choice;
+  }
+
+  public getVoiceChoice(): FemaleVoiceChoice {
+    return this.voiceChoice;
+  }
 
   private getOrCreateAudioElement(): HTMLAudioElement {
     if (!this.sharedAudio) {
@@ -255,7 +266,7 @@ export class ElevenLabsStreamingPlayer {
             'Content-Type': 'application/json',
             ...(passcode ? { 'x-demo-passcode': passcode } : {}),
           },
-          body: JSON.stringify({ text: chunk }),
+          body: JSON.stringify({ text: chunk, voice: this.voiceChoice }),
           signal,
         });
         if (!res.ok) {

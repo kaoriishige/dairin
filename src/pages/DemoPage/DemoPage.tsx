@@ -5,7 +5,11 @@ import { SalesCharacter } from '../../components/SalesCharacter/SalesCharacter';
 import { ServiceMenu } from '../../components/ServiceMenu/ServiceMenu';
 import { VoiceControls } from '../../components/VoiceControls/VoiceControls';
 import { useSpeechRecognition } from '../../hooks/useSpeechRecognition';
-import { ElevenLabsStreamingPlayer, type MouthVowelShape } from '../../services/audio/elevenLabsPlayer';
+import {
+  ElevenLabsStreamingPlayer,
+  type FemaleVoiceChoice,
+  type MouthVowelShape,
+} from '../../services/audio/elevenLabsPlayer';
 import type {
   CharacterState,
   ChatMessage,
@@ -66,6 +70,7 @@ export const DemoPage: React.FC<DemoPageProps> = ({ onOpenAdmin }) => {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [showSubtitle, setShowSubtitle] = useState(true);
   const [volume, setVolume] = useState(0.9);
+  const [voiceChoice, setVoiceChoice] = useState<FemaleVoiceChoice>('elevenlabs_female');
   const [noticeMessage, setNoticeMessage] = useState<string | null>(null);
 
   const playerRef = useRef<ElevenLabsStreamingPlayer | null>(null);
@@ -498,6 +503,11 @@ export const DemoPage: React.FC<DemoPageProps> = ({ onOpenAdmin }) => {
             audioLevel={audioLevel}
             vowel={currentVowel}
             getLiveVoiceMetrics={getLiveVoiceMetrics}
+            voiceChoice={voiceChoice}
+            onChangeVoiceChoice={(choice) => {
+              setVoiceChoice(choice);
+              playerRef.current?.setVoiceChoice(choice);
+            }}
             subtitle={latestAssistantSubtitle}
             onPlaySampleVoice={handlePlaySampleVoice}
             onPlayTestGreeting={handlePlayTestGreeting}

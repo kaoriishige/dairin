@@ -1,13 +1,19 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Mic, Sparkles, Volume2, Car, Clock, MessageSquareHeart } from 'lucide-react';
 import type { CharacterState } from '../../types';
-import type { LiveVoiceMetrics, MouthVowelShape } from '../../services/audio/elevenLabsPlayer';
+import type {
+  FemaleVoiceChoice,
+  LiveVoiceMetrics,
+  MouthVowelShape,
+} from '../../services/audio/elevenLabsPlayer';
 
 export interface SalesCharacterProps {
   state: CharacterState;
   audioLevel?: number;
   vowel?: MouthVowelShape;
   getLiveVoiceMetrics?: () => LiveVoiceMetrics;
+  voiceChoice?: FemaleVoiceChoice;
+  onChangeVoiceChoice?: (choice: FemaleVoiceChoice) => void;
   subtitle?: string;
   onPlaySampleVoice?: () => void;
   onPlayTestGreeting?: () => void;
@@ -57,6 +63,8 @@ const STATE_CONFIG: Record<
 export const SalesCharacter: React.FC<SalesCharacterProps> = ({
   state,
   audioLevel = 0,
+  voiceChoice = 'elevenlabs_female',
+  onChangeVoiceChoice,
   subtitle,
   onPlaySampleVoice,
   onPlayTestGreeting,
@@ -89,7 +97,6 @@ export const SalesCharacter: React.FC<SalesCharacterProps> = ({
 
     idleVideoRef.current?.play().catch(() => {});
 
-    // スマホで初回タップ時に動画再生を確実にアンロック
     const unlockOnTouch = () => {
       if (idleVideoRef.current && idleVideoRef.current.paused) {
         idleVideoRef.current.play().catch(() => {});
@@ -150,23 +157,23 @@ export const SalesCharacter: React.FC<SalesCharacterProps> = ({
         </div>
       </div>
 
-      {/* キャラクター本体表示エリア（スマホでも見やすいサイズ＆絶対配置で崩れ防止） */}
+      {/* キャラクター本体表示エリア（口を閉じた新画像ベース＋待機/発話MP4切り替え） */}
       <div
         className={`relative w-full max-w-[260px] sm:max-w-[320px] md:max-w-[380px] aspect-[4/4.2] rounded-2xl overflow-hidden bg-white border border-blue-100 ring-4 transition-all duration-300 ${cfg.ringClass}`}
       >
-        {/* ベース静止画（動画ロード前や省電力モード時でも必ず表示される） */}
+        {/* ベース静止画（いただいた口を閉じた正面画像） */}
         <img
-          src="/images/dairin_ai_sales_character.png?v=3"
+          src="/images/dairin_ai_sales_character.png?v=4"
           alt="ダイリン AI営業アシスタント（女性営業キャラクター）"
           className="absolute inset-0 w-full h-full object-contain object-bottom select-none pointer-events-none"
           draggable={false}
         />
 
-        {/* ① 待機・聞き取り中ループ動画 (character_idle.mp4) */}
+        {/* ① 待機・聞き取り中ループ動画 (character_idle.mp4：口を閉じてまばたき・呼吸) */}
         <video
           ref={idleVideoRef}
-          src="/videos/character_idle.mp4?v=2"
-          poster="/images/dairin_ai_sales_character.png?v=3"
+          src="/videos/character_idle.mp4?v=4"
+          poster="/images/dairin_ai_sales_character.png?v=4"
           autoPlay
           loop
           muted
@@ -180,11 +187,11 @@ export const SalesCharacter: React.FC<SalesCharacterProps> = ({
           }`}
         />
 
-        {/* ② 発話・車両紹介中ループ動画 (character_speaking.mp4) */}
+        {/* ② 発話・車両紹介中ループ動画 (character_speaking.mp4：口を開閉して会話) */}
         <video
           ref={speakingVideoRef}
-          src="/videos/character_speaking.mp4?v=2"
-          poster="/images/dairin_ai_sales_character.png?v=3"
+          src="/videos/character_speaking.mp4?v=4"
+          poster="/images/dairin_ai_sales_character.png?v=4"
           autoPlay
           loop
           muted
@@ -198,14 +205,14 @@ export const SalesCharacter: React.FC<SalesCharacterProps> = ({
           }`}
         />
 
-        {/* 発話中インジケータ（OpenAI音声再生中） */}
+        {/* 発話中インジケータ */}
         {isSpeakingLike && (
           <div
             aria-hidden="true"
             className="absolute bottom-2.5 right-2.5 flex items-center gap-2 bg-white/90 backdrop-blur-sm px-2.5 py-1.5 rounded-full border border-blue-200 shadow-sm z-10"
           >
             <span className="text-[11px] font-bold text-blue-800 bg-blue-50 px-1.5 py-0.5 rounded">
-              OpenAI音声で会話中
+              女性ボイスで会話中
             </span>
             <div className="flex items-end gap-1">
               {[0.4, 0.85, 0.6, 1.0, 0.5].map((mult, idx) => {
@@ -239,7 +246,7 @@ export const SalesCharacter: React.FC<SalesCharacterProps> = ({
         )}
       </div>
 
-      {/* 下部字幕 / 状態案内 / 音声・動画テストボタン */}
+      {/* 下部字幕 / 女性ボイス選択 / テストボタン */}
       <div className="w-full mt-2.5 sm:mt-3 space-y-2">
         {subtitle ? (
           <div className="bg-blue-50/80 border border-blue-100 rounded-xl px-3 py-2 sm:px-3.5 sm:py-2.5 text-xs sm:text-sm md:text-base text-slate-800 leading-relaxed min-h-[2.75rem]">
@@ -249,6 +256,35 @@ export const SalesCharacter: React.FC<SalesCharacterProps> = ({
           <p className="text-center text-xs sm:text-sm text-slate-500 py-1.5">
             {cfg.subLabel}
           </p>
+        )}
+
+        {/* 女性の声を選択できるセレクタ */}
+        {onChangeVoiceChoice && (
+          <div className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 flex flex-col gap-1">
+            <label
+              htmlFor="female-voice-select"
+              className="text-[11px] font-bold text-slate-700 flex items-center gap-1"
+            >
+              <Volume2 className="w-3.5 h-3.5 text-blue-600" />
+              <span>女性の声を選択：</span>
+            </label>
+            <select
+              id="female-voice-select"
+              value={voiceChoice}
+              onChange={(e) => onChangeVoiceChoice(e.target.value as FemaleVoiceChoice)}
+              className="w-full rounded-lg border border-blue-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="elevenlabs_female">
+                女性ボイス①：専用日本人女性ボイス（ElevenLabs 日本語モード）
+              </option>
+              <option value="openai_nova">
+                女性ボイス②：OpenAI Nova（明るくはっきりした女性の声）
+              </option>
+              <option value="openai_shimmer">
+                女性ボイス③：OpenAI Shimmer（優しく落ち着いた女性の声）
+              </option>
+            </select>
+          </div>
         )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
@@ -269,7 +305,7 @@ export const SalesCharacter: React.FC<SalesCharacterProps> = ({
               className="w-full inline-flex items-center justify-center gap-1.5 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 rounded-xl py-2.5 sm:py-2 px-3 text-xs font-bold transition-colors cursor-pointer"
             >
               <Volume2 className="w-4 h-4 text-blue-700 shrink-0" />
-              <span>OpenAIボイスサンプル再生</span>
+              <span>指定女性サンプル再生</span>
             </button>
           )}
         </div>
