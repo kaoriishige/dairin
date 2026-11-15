@@ -1,0 +1,53 @@
+[
+  {
+    "id": "disc-business-hours",
+    "field": "営業時間・電話受付時間",
+    "description": "公式サイト内で営業時間・電話受付時間の記載が「10:00〜18:00」と「9:00-18:00」の2通り存在します。",
+    "sources": [
+      {
+        "url": "https://www.jp-dairin.jp/ (店舗紹介)",
+        "value": "営業時間 10:00～18:00"
+      },
+      {
+        "url": "https://www.jp-dairin.jp/service/car-sales-lease / inspection / company",
+        "value": "お電話 0287-36-6011 営業時間：9:00-18:00まで対応"
+      },
+      {
+        "url": "https://www.jp-dairin.jp/service/body-paint / insurance-others (レンタカー受付)",
+        "value": "営業時間：10:00-18:00まで対応 / 受付：10:00〜18:00"
+      }
+    ],
+    "status": "needs_confirmation",
+    "detectedAt": "2026-11-15T11:36:00+09:00"
+  },
+  {
+    "id": "disc-inspection-pricing-tables",
+    "field": "車検料金表の複数パターン・表記揺れ",
+    "description": "トップページおよび車検ページ内に複数の車検料金表（自賠責保険料18,660円版・19,170円版、車検ページ内の旧表示/PC・SP切替用とみられる別金額表など）が併記されており、構造解析上単一金額への確定が危険なため要確認としています。",
+    "sources": [
+      {
+        "url": "https://www.jp-dairin.jp/",
+        "value": "軽自動車 ベーシック車検合計 49,360円 / 49,870円（2パターン掲載）"
+      },
+      {
+        "url": "https://www.jp-dairin.jp/service/inspection",
+        "value": "軽自動車 ベーシックプラス車検合計 59,240円等の別表、および14,300円/17,600円表記のプレースホルダ的要素を検出"
+      }
+    ],
+    "status": "needs_confirmation",
+    "detectedAt": "2026-11-15T11:36:00+09:00"
+  },
+  {
+    "id": "disc-vehicle-total-price",
+    "field": "掲載車両の支払総額・詳細装備・現在庫",
+    "description": "公式サイトに掲載されている車両は「本体価格」のみの記載であり、支払総額・修復歴・詳細な装備一覧・現在の売約状況は公式サイト上に明記されていません。",
+    "sources": [
+      {
+        "url": "https://www.jp-dairin.jp/service/car-sales-lease",
+        "value": "年式・走行距離・本体価格のみ掲載（各車の詳細はジェイピーまでお問合せください）"
+      }
+    ],
+    "status": "needs_confirmation",
+    "detectedAt": "2026-11-15T11:36:00+09:00"
+  }
+]

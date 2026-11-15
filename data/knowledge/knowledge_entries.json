@@ -1,0 +1,123 @@
+[
+  {
+    "id": "kn-company-overview",
+    "category": "会社情報",
+    "title": "株式会社ジェイ・ピー（オートギャラリーダイリン）概要",
+    "content": "1977年10月設立。栃木県那須塩原市新南163-115に本社・店舗を構える総合カーライフサポート企業です。社名ジェイ・ピーには「JOY PARK（クルマを通じて笑顔が集まり、つながる場）」の意味があり、ダイリン（大輪）として地域の笑顔の輪を広げることを目指しています。",
+    "keywords": ["会社概要", "ジェイ・ピー", "ダイリン", "那須塩原", "設立", "代表"],
+    "sourceUrl": "https://www.jp-dairin.jp/company",
+    "sourceType": "official_site",
+    "approvalStatus": "approved",
+    "updatedAt": "2026-11-15T11:36:00+09:00"
+  },
+  {
+    "id": "kn-store-access",
+    "category": "店舗情報",
+    "title": "店舗所在地・電話番号・営業時間・定休日",
+    "content": "所在地：〒329-2704 栃木県那須塩原市新南163-115。電話番号：0287-36-6011。定休日：水・木曜（※最終週の木曜は営業）。営業時間：店舗案内では10:00〜18:00、電話お問合せ欄では9:00〜18:00と表記が異なる箇所があるため、ご来店・お電話の際は事前確認をおすすめします。ダイリン車検センター、カーコンビニ倶楽部ダイリン、アップル西那須野店などの拠点があります。",
+    "keywords": ["場所", "住所", "アクセス", "地図", "電話", "営業時間", "定休日", "どこ"],
+    "sourceUrl": "https://www.jp-dairin.jp/",
+    "sourceType": "official_site",
+    "approvalStatus": "approved",
+    "updatedAt": "2026-11-15T11:36:00+09:00"
+  },
+  {
+    "id": "kn-used-car-benefits",
+    "category": "中古車販売",
+    "title": "中古車購入者特典・アフターサポート",
+    "content": "ダイリンで中古車をご購入いただくと、次回車検まで6ヶ月に1回のエンジンオイル無料、手洗いコーティング洗車初回無料（以降500円）、ダイリンアプリダウンロードで5,000ポイント進呈の特典があります。自社指定工場完備のため購入後の車検やメンテナンスも安心です。",
+    "keywords": ["中古車", "特典", "オイル無料", "洗車", "アフターサービス"],
+    "sourceUrl": "https://www.jp-dairin.jp/service/car-sales-lease",
+    "sourceType": "official_site",
+    "approvalStatus": "approved",
+    "updatedAt": "2026-11-15T11:36:00+09:00"
+  },
+  {
+    "id": "kn-new-car-sales",
+    "category": "新車販売",
+    "title": "全メーカー新車販売対応",
+    "content": "スズキ、ダイハツ、トヨタ、マツダをはじめ国産全メーカーの新車を取り扱っています。最新モデルの納期やグレード別のお見積りは店頭またはお電話・お問い合わせフォーム・公式LINEにてスタッフがご案内します。",
+    "keywords": ["新車", "全メーカー", "スズキ", "ダイハツ", "トヨタ", "納期"],
+    "sourceUrl": "https://www.jp-dairin.jp/service/car-sales-lease",
+    "sourceType": "official_site",
+    "approvalStatus": "approved",
+    "updatedAt": "2026-11-15T11:36:00+09:00"
+  },
+  {
+    "id": "kn-buyback-flow",
+    "category": "車の買取",
+    "title": "車の高価買取と無料査定の流れ",
+    "content": "オートギャラリーダイリンとアップル西那須野店の2店舗体制で買取に対応。自社整備工場で点検・整備し独自ルートで販売できるため高価買取が可能です。無料査定は約30分で、査定前にお電話やフォームで予約できます。実車確認前の確定金額提示はできません。",
+    "keywords": ["買取", "下取り", "査定", "アップル", "2018年式", "売却"],
+    "sourceUrl": "https://www.jp-dairin.jp/service/car-sales-lease",
+    "sourceType": "official_site",
+    "approvalStatus": "approved",
+    "updatedAt": "2026-11-15T11:36:00+09:00"
+  },
+  {
+    "id": "kn-car-lease",
+    "category": "カーリース",
+    "title": "月々1.1万円〜のカーリース（コアラクラブ・カーコン）",
+    "content": "税金や車検・メンテナンス費用コミコミで月々定額の新車に乗れる「コアラクラブリース（将来所有したい方向け）」と「カーコンリース（気軽に乗りたい方向け）」をご用意。どちらも月々1.1万円〜のプランからご相談いただけます。",
+    "keywords": ["カーリース", "リース", "月々", "定額", "コアラクラブ", "カーコン"],
+    "sourceUrl": "https://www.jp-dairin.jp/service/car-sales-lease",
+    "sourceType": "official_site",
+    "approvalStatus": "approved",
+    "updatedAt": "2026-11-15T11:36:00+09:00"
+  },
+  {
+    "id": "kn-inspection-details",
+    "category": "車検",
+    "title": "ダイリン車検の料金目安と2つのコース",
+    "content": "国家資格整備士による69項目点検と無料代車手配が特長。ベーシック車検（軽自動車目安 約49,360円〜49,870円）と、ブレーキ分解清掃・ブレーキオイル・冷却水交換等を含むベーシックプラス車検（+11,000円目安）があります。初年度登録13年・18年超や車両状態、スーパークーラント使用車などで金額が変わるため、無料見積もりをおすすめしています。",
+    "keywords": ["車検", "軽自動車", "料金", "費用", "いくら", "ベーシック", "代車"],
+    "sourceUrl": "https://www.jp-dairin.jp/service/inspection",
+    "sourceType": "official_site",
+    "approvalStatus": "approved",
+    "updatedAt": "2026-11-15T11:36:00+09:00"
+  },
+  {
+    "id": "kn-body-paint",
+    "category": "鈑金・塗装",
+    "title": "キズ・ヘコミ修理とリサイクルパーツ提案",
+    "content": "カーコンビニ倶楽部ダイリンとして月約60台の修理実績。フレーム修正機を備え、小さなキズから事故修理、保険修理まで対応。ご予算に応じてリサイクルパーツやリビルトパーツを使ったお得な修理も可能です。料金は実車確認後のお見積りとなります。",
+    "keywords": ["鈑金", "板金", "塗装", "キズ", "へこみ", "修理", "事故"],
+    "sourceUrl": "https://www.jp-dairin.jp/service/body-paint",
+    "sourceType": "official_site",
+    "approvalStatus": "approved",
+    "updatedAt": "2026-11-15T11:36:00+09:00"
+  },
+  {
+    "id": "kn-insurance",
+    "category": "保険",
+    "title": "自動車保険の相談とワンストップ対応",
+    "content": "自賠責保険・自動車保険を取り扱い、万が一の事故時も修理から保険手続きまでワンストップでサポートします。具体的なプラン設計や引受条件については担当スタッフが詳しくご案内します。",
+    "keywords": ["保険", "自動車保険", "自賠責", "事故"],
+    "sourceUrl": "https://www.jp-dairin.jp/service/insurance-others",
+    "sourceType": "official_site",
+    "approvalStatus": "approved",
+    "updatedAt": "2026-11-15T11:36:00+09:00"
+  },
+  {
+    "id": "kn-contact-channels",
+    "category": "問い合わせ・来店案内",
+    "title": "お電話・WEB・公式LINEでのご相談方法",
+    "content": "お電話（0287-36-6011）、公式サイトのお問い合わせフォーム（https://www.jp-dairin.jp/contact）、公式LINE（https://page.line.me/477yxpsw）からご相談いただけます。なお本デモは予約管理システムと未接続のため、日時の確定予約は店舗へ直接ご連絡ください。",
+    "keywords": ["予約", "来店", "相談", "LINE", "問い合わせ", "見積もり"],
+    "sourceUrl": "https://www.jp-dairin.jp/contact",
+    "sourceType": "official_site",
+    "approvalStatus": "approved",
+    "updatedAt": "2026-11-15T11:36:00+09:00"
+  },
+  {
+    "id": "kn-sales-knowhow-01",
+    "category": "営業ノウハウ",
+    "title": "初回接客：予算と利用目的の自然なヒアリング",
+    "content": "お客様が予算（例：100万円〜150万円）を提示された場合は、まず条件を受け止めた上で「通勤・お買い物中心か、ご家族でのお出かけが多いか」など用途を1つだけ質問し、スライドドア車や低燃費車など最適な提案につなげます。",
+    "keywords": ["営業ノウハウ", "ヒアリング", "予算", "家族", "スライドドア"],
+    "sourceType": "sales_knowhow",
+    "approvalStatus": "approved",
+    "updatedAt": "2026-11-15T11:36:00+09:00",
+    "author": "初期設定ノウハウ"
+  }
+]
