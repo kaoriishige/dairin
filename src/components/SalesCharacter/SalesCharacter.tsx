@@ -178,9 +178,9 @@ export const SalesCharacter: React.FC<SalesCharacterProps> = ({
     async function preload() {
       try {
         const [base, eyesAtlas, mouthAtlas] = await Promise.all([
-          loadImage('/images/dairin_ai_sales_character.png'),
-          loadImage('/images/parts/eyes_atlas.png'),
-          loadImage('/images/parts/mouth_atlas.png'),
+          loadImage('/images/dairin_ai_sales_character.png?v=2'),
+          loadImage('/images/parts/eyes_atlas.png?v=2'),
+          loadImage('/images/parts/mouth_atlas.png?v=2'),
         ]);
         if (cancelled) return;
 
@@ -492,7 +492,7 @@ export const SalesCharacter: React.FC<SalesCharacterProps> = ({
         className={`relative w-full max-w-[340px] md:max-w-[380px] aspect-[4/4.2] rounded-2xl overflow-hidden bg-gradient-to-b from-blue-50/70 via-white to-slate-50 border border-blue-100 ring-4 transition-all duration-300 ${cfg.ringClass} flex items-end justify-center`}
       >
         <img
-          src="/images/dairin_ai_sales_character.png"
+          src="/images/dairin_ai_sales_character.png?v=2"
           alt="ダイリン AI営業アシスタント（女性営業キャラクター）"
           className={`w-full h-full object-contain object-bottom select-none pointer-events-none ${
             atlasesReady ? 'opacity-0 absolute inset-0' : 'opacity-100'
