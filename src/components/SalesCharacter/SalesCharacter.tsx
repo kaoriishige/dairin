@@ -430,10 +430,11 @@ export const SalesCharacter: React.FC<SalesCharacterProps> = ({
         const dx = smoothHeadSwayX * wHead * (0.45 + 0.55 * headLeverage);
         const dy = smoothNodY * wHead + breathWave * 2.2 * wBreath;
 
-        // 呼吸に伴う肩〜胸元の微細な横幅伸縮
+        // 呼吸に伴う肩〜胸元の微細な横幅伸縮（手がない新画像の中心 X=584 をカード中央 X=516 へ補正）
+        const CENTER_SHIFT_X = -68;
         const scaleX = 1.0 + Math.max(0, breathWave) * 0.0035 * wBreath;
         const drawW = CANVAS_W * scaleX;
-        const drawX = dx - (drawW - CANVAS_W) * 0.5;
+        const drawX = CENTER_SHIFT_X + dx - (drawW - CANVAS_W) * 0.5;
 
         // ストリップ間の隙間を防ぐため 0.6px オーバーラップ描画
         ctx.drawImage(
