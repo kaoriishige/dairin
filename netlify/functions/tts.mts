@@ -10,37 +10,41 @@ import {
 } from './_shared/security';
 
 export type GoogleCuteVoicePreset =
-  | 'ja-JP-Chirp3-HD-Leda'
-  | 'ja-JP-Chirp3-HD-Zephyr'
-  | 'ja-JP-Wavenet-A-cute'
-  | 'ja-JP-Neural2-B-cute';
+  | 'wavenet-a-bright-1'
+  | 'wavenet-a-bright-2'
+  | 'neural2-b-bright'
+  | 'standard-a-bright';
 
 interface VoicePresetConfig {
   googleVoiceName: string;
-  speakingRate?: number;
-  pitch?: number;
+  speakingRate: number;
+  pitch: number;
 }
 
 const VOICE_PRESETS: Record<GoogleCuteVoicePreset, VoicePresetConfig> = {
-  // Chirp3-HD Leda: 若々しく可愛い女性ボイス（初期設定）
-  'ja-JP-Chirp3-HD-Leda': {
-    googleVoiceName: 'ja-JP-Chirp3-HD-Leda',
-  },
-  // Chirp3-HD Zephyr: 明るく元気で可愛い女性ボイス
-  'ja-JP-Chirp3-HD-Zephyr': {
-    googleVoiceName: 'ja-JP-Chirp3-HD-Zephyr',
-  },
-  // Wavenet-A (ピッチ+3.2): 高めで可愛いアニメ・キャラクター調
-  'ja-JP-Wavenet-A-cute': {
+  // ① 若く明るい高音（Wavenet-A ピッチ+6.0・スピード1.18：初期設定）
+  'wavenet-a-bright-1': {
     googleVoiceName: 'ja-JP-Wavenet-A',
-    speakingRate: 1.08,
-    pitch: 3.2,
+    speakingRate: 1.18,
+    pitch: 6.0,
   },
-  // Neural2-B (ピッチ+3.2): 高めで可愛い受付スタッフ調
-  'ja-JP-Neural2-B-cute': {
+  // ② さらに若く高め・アニメ調（Wavenet-A ピッチ+8.0・スピード1.20）
+  'wavenet-a-bright-2': {
+    googleVoiceName: 'ja-JP-Wavenet-A',
+    speakingRate: 1.2,
+    pitch: 8.0,
+  },
+  // ③ 若く明るい・受付スタッフ調（Neural2-B ピッチ+6.5・スピード1.18）
+  'neural2-b-bright': {
     googleVoiceName: 'ja-JP-Neural2-B',
-    speakingRate: 1.08,
-    pitch: 3.2,
+    speakingRate: 1.18,
+    pitch: 6.5,
+  },
+  // ④ クリアで高い・可愛い声（Standard-A ピッチ+7.0・スピード1.18）
+  'standard-a-bright': {
+    googleVoiceName: 'ja-JP-Standard-A',
+    speakingRate: 1.18,
+    pitch: 7.0,
   },
 };
 
@@ -48,21 +52,12 @@ async function synthesizeGoogleCloudJapaneseFemale(
   apiKey: string,
   presetKey: GoogleCuteVoicePreset,
   text: string
-): Promise<{ ok: boolean; status: number; audioBuffer?: Uint8Array; errorDetail?: string; usedVoice?: string }> {
+): Promise<{ ok: boolean; status: number; audioBuffer?: Uint8Array; errorDetail?: string }> {
   const endpoint = `https://texttospeech.googleapis.com/v1/text:synthesize?key=${encodeURIComponent(
     apiKey
   )}`;
 
-  const preset = VOICE_PRESETS[presetKey] ?? VOICE_PRESETS['ja-JP-Chirp3-HD-Leda'];
-  const audioConfig: Record<string, unknown> = {
-    audioEncoding: 'MP3',
-  };
-  if (typeof preset.speakingRate === 'number') {
-    audioConfig.speakingRate = preset.speakingRate;
-  }
-  if (typeof preset.pitch === 'number') {
-    audioConfig.pitch = preset.pitch;
-  }
+  const preset = VOICE_PRESETS[presetKey] ?? VOICE_PRESETS['wavenet-a-bright-1'];
 
   const res = await fetch(endpoint, {
     method: 'POST',
@@ -75,7 +70,13 @@ async function synthesizeGoogleCloudJapaneseFemale(
         languageCode: 'ja-JP',
         name: preset.googleVoiceName,
       },
-      audioConfig,
+      audioConfig: {
+        audioEncoding: 'MP3',
+        speakingRate: preset.speakingRate,
+        pitch: preset.pitch,
+        // 低音のこもりを除去して明るく若い声質にするEQプロファイル
+        effectsProfileId: ['small-bluetooth-speaker-class-device'],
+      },
     }),
   });
 
@@ -94,7 +95,6 @@ async function synthesizeGoogleCloudJapaneseFemale(
     ok: true,
     status: 200,
     audioBuffer: new Uint8Array(binary),
-    usedVoice: preset.googleVoiceName,
   };
 }
 
@@ -146,7 +146,7 @@ export default async (req: Request, context: Context) => {
   const activePreset: GoogleCuteVoicePreset =
     requestedVoice && requestedVoice in VOICE_PRESETS
       ? requestedVoice
-      : 'ja-JP-Chirp3-HD-Leda';
+      : 'wavenet-a-bright-1';
 
   try {
     const result = await synthesizeGoogleCloudJapaneseFemale(googleKey, activePreset, text);

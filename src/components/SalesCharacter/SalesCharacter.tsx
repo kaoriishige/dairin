@@ -64,7 +64,7 @@ export const SalesCharacter: React.FC<SalesCharacterProps> = ({
   state,
   isSpeaking = false,
   audioLevel = 0,
-  voiceChoice = 'ja-JP-Chirp3-HD-Leda',
+  voiceChoice = 'wavenet-a-bright-1',
   onChangeVoiceChoice,
   subtitle,
   interimTranscript,
@@ -275,10 +275,10 @@ export const SalesCharacter: React.FC<SalesCharacterProps> = ({
             onChange={(e) => onChangeVoiceChoice(e.target.value as FemaleVoiceChoice)}
             className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
           >
-            <option value="ja-JP-Chirp3-HD-Leda">① 可愛い・若々しい（Leda HD）</option>
-            <option value="ja-JP-Chirp3-HD-Zephyr">② 明るく元気・可愛い（Zephyr HD）</option>
-            <option value="ja-JP-Wavenet-A-cute">③ 高め・アニメ調（Wavenet-A）</option>
-            <option value="ja-JP-Neural2-B-cute">④ 高め・受付調（Neural2-B）</option>
+            <option value="wavenet-a-bright-1">① 若く明るい高音（ピッチ+6.0）</option>
+            <option value="wavenet-a-bright-2">② さらに若く高め・アニメ調（ピッチ+8.0）</option>
+            <option value="neural2-b-bright">③ 若く明るい受付調（ピッチ+6.5）</option>
+            <option value="standard-a-bright">④ クリアで高い可愛い声（ピッチ+7.0）</option>
           </select>
         </div>
       )}

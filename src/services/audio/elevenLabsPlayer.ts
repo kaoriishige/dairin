@@ -3,10 +3,10 @@ import { splitIntoSpeechChunks } from './speechTextNormalizer';
 export type MouthVowelShape = 'closed' | 'a' | 'i' | 'u' | 'e' | 'o';
 
 export type FemaleVoiceChoice =
-  | 'ja-JP-Chirp3-HD-Leda'
-  | 'ja-JP-Chirp3-HD-Zephyr'
-  | 'ja-JP-Wavenet-A-cute'
-  | 'ja-JP-Neural2-B-cute';
+  | 'wavenet-a-bright-1'
+  | 'wavenet-a-bright-2'
+  | 'neural2-b-bright'
+  | 'standard-a-bright';
 
 export interface LiveVoiceMetrics {
   level: number;
@@ -84,7 +84,7 @@ export class ElevenLabsStreamingPlayer {
   private activeObjectUrl: string | null = null;
   private rafId: number | null = null;
   private volume = 0.9;
-  private voiceChoice: FemaleVoiceChoice = 'ja-JP-Chirp3-HD-Leda';
+  private voiceChoice: FemaleVoiceChoice = 'wavenet-a-bright-1';
   private isPlayingFlag = false;
   private playbackToken = 0;
 
@@ -243,10 +243,15 @@ export class ElevenLabsStreamingPlayer {
   public async speak(
     text: string,
     passcode: string,
-    callbacks: TtsPlaybackCallbacks = {}
+    callbacks: TtsPlaybackCallbacks = {},
+    overrideVoice?: FemaleVoiceChoice
   ): Promise<boolean> {
     this.stop();
     this.unlockAudioForMobile();
+    if (overrideVoice) {
+      this.voiceChoice = overrideVoice;
+    }
+    const activeVoice = overrideVoice || this.voiceChoice;
 
     const myToken = this.playbackToken;
     const chunks = splitIntoSpeechChunks(text, 220);
@@ -266,7 +271,7 @@ export class ElevenLabsStreamingPlayer {
             'Content-Type': 'application/json',
             ...(passcode ? { 'x-demo-passcode': passcode } : {}),
           },
-          body: JSON.stringify({ text: chunk, voice: this.voiceChoice }),
+          body: JSON.stringify({ text: chunk, voice: activeVoice }),
           signal,
         });
         if (!res.ok) {

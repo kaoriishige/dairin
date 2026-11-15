@@ -88,7 +88,7 @@ export const DemoPage: React.FC<DemoPageProps> = () => {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [showSubtitle, setShowSubtitle] = useState(true);
   const [volume, setVolume] = useState(0.9);
-  const [voiceChoice, setVoiceChoice] = useState<FemaleVoiceChoice>('ja-JP-Chirp3-HD-Leda');
+  const [voiceChoice, setVoiceChoice] = useState<FemaleVoiceChoice>('wavenet-a-bright-1');
   const [noticeMessage, setNoticeMessage] = useState<string | null>(null);
 
   const playerRef = useRef<ElevenLabsStreamingPlayer | null>(null);
@@ -151,7 +151,11 @@ export const DemoPage: React.FC<DemoPageProps> = () => {
   }, [loadPublicData, passcode]);
 
   const playAssistantVoice = useCallback(
-    async (speechText: string, nextIdleState: CharacterState) => {
+    async (
+      speechText: string,
+      nextIdleState: CharacterState,
+      overrideVoice?: FemaleVoiceChoice
+    ) => {
       if (!ttsEnabled || ttsCallsCount >= maxTtsCalls) {
         if (ttsCallsCount >= maxTtsCalls) {
           setNoticeMessage('セッションあたりの音声生成上限に達したため、文字チャットで継続します。');
@@ -164,37 +168,42 @@ export const DemoPage: React.FC<DemoPageProps> = () => {
       }
 
       setTtsCallsCount((c) => c + 1);
-      await playerRef.current?.speak(speechText, passcode, {
-        onStart: () => {
-          setIsSpeaking(true);
-          setCharacterState(nextIdleState);
+      await playerRef.current?.speak(
+        speechText,
+        passcode,
+        {
+          onStart: () => {
+            setIsSpeaking(true);
+            setCharacterState(nextIdleState);
+          },
+          onAudioLevel: (lvl, vowelShape) => {
+            setAudioLevel(lvl);
+            setCurrentVowel(vowelShape ?? 'closed');
+          },
+          onEnd: () => {
+            // セリフが終わったら即座に口パクを止め、待機状態（手動で「マイクで話す」を押す方式）に戻す
+            setIsSpeaking(false);
+            setAudioLevel(0);
+            setCurrentVowel('closed');
+            setCharacterState('idle');
+          },
+          onFallbackToText: (reason) => {
+            setIsSpeaking(false);
+            setAudioLevel(0);
+            setCurrentVowel('closed');
+            setCharacterState('idle');
+            setTtsEnabled(false);
+            setNoticeMessage(reason);
+            appendLocalLog<ErrorLogEntry>('dairin_error_logs', {
+              id: `err-${Date.now()}`,
+              source: 'tts',
+              message: reason,
+              createdAt: new Date().toISOString(),
+            });
+          },
         },
-        onAudioLevel: (lvl, vowelShape) => {
-          setAudioLevel(lvl);
-          setCurrentVowel(vowelShape ?? 'closed');
-        },
-        onEnd: () => {
-          // セリフが終わったら即座に口パクを止め、待機状態（手動で「マイクで話す」を押す方式）に戻す
-          setIsSpeaking(false);
-          setAudioLevel(0);
-          setCurrentVowel('closed');
-          setCharacterState('idle');
-        },
-        onFallbackToText: (reason) => {
-          setIsSpeaking(false);
-          setAudioLevel(0);
-          setCurrentVowel('closed');
-          setCharacterState('idle');
-          setTtsEnabled(false);
-          setNoticeMessage(reason);
-          appendLocalLog<ErrorLogEntry>('dairin_error_logs', {
-            id: `err-${Date.now()}`,
-            source: 'tts',
-            message: reason,
-            createdAt: new Date().toISOString(),
-          });
-        },
-      });
+        overrideVoice
+      );
     },
     [maxTtsCalls, passcode, ttsCallsCount, ttsEnabled]
   );
@@ -481,6 +490,13 @@ export const DemoPage: React.FC<DemoPageProps> = () => {
             onChangeVoiceChoice={(choice) => {
               setVoiceChoice(choice);
               playerRef.current?.setVoiceChoice(choice);
+              // プルダウンで声を切り替えたら、その場で新しい声で挨拶セリフを再生してすぐ聴き比べられるようにする
+              playerRef.current?.unlockAudioForMobile();
+              void playAssistantVoice(
+                latestAssistantMessage?.speechText || INITIAL_GREETING_SPEECH,
+                'speaking',
+                choice
+              );
             }}
             subtitle={latestAssistantSubtitle}
             interimTranscript={speech.interimTranscript}
