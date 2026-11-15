@@ -3,7 +3,7 @@ import type { SystemHealthStatus } from '../../src/types';
 import { loadAllKnowledgeData } from './_shared/dataLoader';
 import { getEnv, jsonResponse, verifyAdminAuth } from './_shared/security';
 
-const FIXED_VOICE_ID = 'dp4HJlekKt0HZFHL2jQg';
+const FIXED_VOICE_ID = 'tmmztcupA9Eu81ix80hq';
 
 async function checkElevenLabsStatus(apiKey: string, modelId: string): Promise<Partial<SystemHealthStatus>> {
   if (!apiKey || apiKey === 'your_elevenlabs_api_key_here') {

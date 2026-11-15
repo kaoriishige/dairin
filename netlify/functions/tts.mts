@@ -8,8 +8,8 @@ import {
   verifyDemoAccess,
 } from './_shared/security';
 
-// 第3章 確定Voice ID（第1優先）
-const PRIMARY_VOICE_ID = 'dp4HJlekKt0HZFHL2jQg';
+// 確定Voice ID（ご自身のアカウントで作成された営業女性ボイス：無料プランAPIでも直接利用可能）
+const PRIMARY_VOICE_ID = 'tmmztcupA9Eu81ix80hq';
 // ElevenLabs無料プランでLibrary Voice制限（402 paid_plan_required）が発生した際の同API内バックアップ女性ボイス
 const FREE_PLAN_FALLBACK_VOICE_ID = 'cgSgspJ2msm6clMCkdW9';
 

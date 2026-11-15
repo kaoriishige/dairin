@@ -36,7 +36,7 @@ export default async (req: Request) => {
       services,
       runtime: {
         ttsEnabled,
-        voiceId: 'dp4HJlekKt0HZFHL2jQg',
+        voiceId: 'tmmztcupA9Eu81ix80hq',
         modelId: getEnv('ELEVENLABS_MODEL_ID', 'eleven_multilingual_v2'),
         maxTtsCallsPerSession: Number(getEnv('MAX_TTS_CALLS_PER_SESSION', '25')) || 25,
         maxSessionDurationMinutes: Number(getEnv('MAX_SESSION_DURATION_MINUTES', '20')) || 20,
