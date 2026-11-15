@@ -46,8 +46,8 @@ async function synthesizeCartesiaJapaneseBright(
         mode: 'id',
         id: voiceId,
         __experimental_controls: {
-          speed: 'fast',
-          emotion: ['positivity:highest', 'curiosity:high'],
+          speed: 'normal',
+          emotion: ['positivity:high', 'curiosity:high'],
         },
       },
       output_format: {

@@ -249,50 +249,50 @@ export function normalizeTextForSpeech(rawText: string): string {
   // 桁区切りカンマ付き数字を統合（例: 49,360 -> 49360）
   text = text.replace(/(\d{1,3}),(\d{3})/g, '$1$2');
 
-  // 小数付き万円（例: 82.5万円 -> はちじゅうにまんごせんえん、1.1万円 -> いちまんいっせんえん）
+  // 小数付き万円（例: 82.5万円 -> 、はちじゅうにまんごせんえん、、1.1万円 -> 、いちまんいっせんえん、）
   text = text.replace(/(\d+)\.(\d+)\s*万円/g, (_, intPart, decPart) => {
     const yen = Math.round(parseFloat(`${intPart}.${decPart}`) * 10000);
-    return `${numberToJapaneseReading(yen)}えん`;
+    return `、${numberToJapaneseReading(yen)}えん、`;
   });
 
   // 「〜万〜千円」などの混在表記（例: 82万5千円 / 82万5000円）
   text = text.replace(/(\d+)\s*万\s*(\d+)\s*千円/g, (_, manStr, senStr) => {
     const yen = parseInt(manStr, 10) * 10000 + parseInt(senStr, 10) * 1000;
-    return `${numberToJapaneseReading(yen)}えん`;
+    return `、${numberToJapaneseReading(yen)}えん、`;
   });
 
-  // 整数万円（例: 121万円 -> ひゃくにじゅういちまんえん）
+  // 整数万円（例: 121万円 -> 、ひゃくにじゅういちまんえん、）
   text = text.replace(/(\d+)\s*万円/g, (_, numStr) => {
     const n = parseInt(numStr, 10);
-    return `${numberToJapaneseReading(n)}まんえん`;
+    return `、${numberToJapaneseReading(n)}まんえん、`;
   });
 
-  // 「〜万」のみ（例: 100万くらい -> ひゃくまんくらい）
+  // 「〜万」のみ（例: 100万くらい -> 、ひゃくまん、くらい）
   text = text.replace(/(\d+)\s*万/g, (_, numStr) => {
     const n = parseInt(numStr, 10);
-    return `${numberToJapaneseReading(n)}まん`;
+    return `、${numberToJapaneseReading(n)}まん`;
   });
 
-  // 円（例: 49360円 -> よんまんきゅうせんさんびゃくろくじゅうえん）
+  // 円（例: 49360円 -> 、よんまんきゅうせんさんびゃくろくじゅうえん、）
   text = text.replace(/[¥￥]?\s*(\d+)\s*円/g, (_, numStr) => {
     const n = parseInt(numStr, 10);
-    return `${numberToJapaneseReading(n)}えん`;
+    return `、${numberToJapaneseReading(n)}えん、`;
   });
   text = text.replace(/[¥￥](\d+)/g, (_, numStr) => {
     const n = parseInt(numStr, 10);
-    return `${numberToJapaneseReading(n)}えん`;
+    return `、${numberToJapaneseReading(n)}えん、`;
   });
 
-  // 年式（例: 2018年 -> にせんじゅうはちねん）
+  // 年式（例: 2018年 -> 、にせんじゅうはちねん、）
   text = text.replace(/(\d{4})\s*年/g, (_, numStr) => {
     const n = parseInt(numStr, 10);
-    return `${numberToJapaneseReading(n)}ねん`;
+    return `、${numberToJapaneseReading(n)}ねん、`;
   });
 
-  // 走行距離 km（例: 44000km -> よんまんよんせんキロ）
+  // 走行距離 km（例: 44000km -> 、よんまんよんせんキロ、）
   text = text.replace(/(\d+)\s*km/gi, (_, numStr) => {
     const n = parseInt(numStr, 10);
-    return `${numberToJapaneseReading(n)}キロ`;
+    return `、${numberToJapaneseReading(n)}キロ、`;
   });
 
   // 排気量 cc
@@ -336,6 +336,8 @@ export function normalizeTextForSpeech(rawText: string): string {
     .replace(/\r?\n+/g, '。')
     .replace(/。{2,}/g, '。')
     .replace(/、{2,}/g, '、')
+    .replace(/、。/g, '。')
+    .replace(/^、+/, '')
     .replace(/\s+/g, ' ')
     .trim();
 
