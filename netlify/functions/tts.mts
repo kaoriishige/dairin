@@ -15,8 +15,6 @@ export type CuteFemaleVoicePreset =
   | 'cartesia-suzuka-bright'
   | 'cartesia-rin-bright';
 
-const DEFAULT_CARTESIA_KEY = 'sk_car_zTGM5hftg862RckAb9MJWs';
-
 async function synthesizeVoicevoxCuteGirl(
   speakerId: number,
   text: string
@@ -154,7 +152,16 @@ export default async (req: Request, context: Context) => {
       ? requestedVoice
       : 'voicevox-tsumugi';
 
-  const cartesiaKey = getEnv('CARTESIA_API_KEY', DEFAULT_CARTESIA_KEY).trim() || DEFAULT_CARTESIA_KEY;
+  const cartesiaKey = getEnv('CARTESIA_API_KEY', '').trim();
+  if (!cartesiaKey) {
+    return jsonResponse(
+      {
+        error: '音声APIキー（CARTESIA_API_KEY）が未設定のため、文字チャットで継続します。',
+        code: 'TTS_NOT_CONFIGURED',
+      },
+      503
+    );
+  }
 
   try {
     // ①・② 日本の若手女性声優による本物の若い女の子ボイス（VOICEVOX）
