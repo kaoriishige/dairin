@@ -109,7 +109,11 @@ export default async (req: Request, context: Context) => {
       );
     }
 
-    return new Response(result.audioBuffer, {
+    const audioBlob = new Blob([result.audioBuffer as unknown as BlobPart], {
+      type: 'audio/mpeg',
+    });
+
+    return new Response(audioBlob, {
       status: 200,
       headers: {
         'Content-Type': 'audio/mpeg',
