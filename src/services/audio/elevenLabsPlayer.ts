@@ -355,7 +355,7 @@ export class ElevenLabsStreamingPlayer {
             }
           }, 120);
 
-          const maxDurationMs = Math.max(8000, chunk.length * 320);
+          const maxDurationMs = Math.max(8000, text.length * 320);
           maxTimer = setTimeout(() => {
             finishOk();
           }, maxDurationMs);
