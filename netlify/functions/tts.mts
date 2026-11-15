@@ -1,5 +1,5 @@
 import type { Config, Context } from '@netlify/functions';
-import { normalizeTextForGoogleCloudTts } from '../../src/services/audio/speechTextNormalizer';
+import { normalizeTextForSpeech } from '../../src/services/audio/speechTextNormalizer';
 import {
   checkRateLimit,
   getClientIp,
@@ -113,7 +113,7 @@ export default async (req: Request, context: Context) => {
   }
 
   const rawText = sanitizeUserInput(body.text || '', maxChars);
-  const text = normalizeTextForGoogleCloudTts(rawText);
+  const text = normalizeTextForSpeech(rawText);
   if (!text) {
     return jsonResponse({ error: '読み上げテキストが空です。' }, 400);
   }

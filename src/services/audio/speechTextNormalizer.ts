@@ -167,6 +167,42 @@ const PRONUNCIATION_MAP: Array<[RegExp, string]> = [
   [/ご来店/g, 'ごらいてん'],
   [/来店/g, 'らいてん'],
   [/試乗/g, 'しじょう'],
+  [/本日/g, 'ほんじつ'],
+  [/ご用件/g, 'ごようけん'],
+  [/用件/g, 'ようけん'],
+  [/ご購入/g, 'ごこうにゅう'],
+  [/購入/g, 'こうにゅう'],
+  [/ご相談/g, 'ごそうだん'],
+  [/相談/g, 'そうだん'],
+  [/ご案内/g, 'ごあんない'],
+  [/案内/g, 'あんない'],
+  [/ご紹介/g, 'ごしょうかい'],
+  [/紹介/g, 'しょうかい'],
+  [/ご覧/g, 'ごらん'],
+  [/下記/g, 'かき'],
+  [/詳細/g, 'しょうさい'],
+  [/価格/g, 'かかく'],
+  [/総額/g, 'そうがく'],
+  [/税込/g, 'ぜいこみ'],
+  [/税抜/g, 'ぜいぬき'],
+  [/車検代/g, 'しゃけんだい'],
+  [/法定費用/g, 'ほうていひよう'],
+  [/頭金/g, 'あたまきん'],
+  [/金利/g, 'きんり'],
+  [/お電話/g, 'おでんわ'],
+  [/電話/g, 'でんわ'],
+  [/ご連絡/g, 'ごれんらく'],
+  [/連絡/g, 'れんらく'],
+  [/お問い合わせ/g, 'おといあわせ'],
+  [/お問合せ/g, 'おといあわせ'],
+  [/公式/g, 'こうしき'],
+  [/直接/g, 'ちょくせつ'],
+  [/確認/g, 'かくにん'],
+  [/人気/g, 'にんき'],
+  [/那須/g, 'なす'],
+  [/大田原/g, 'おおたわら'],
+  [/矢板/g, 'やいた'],
+  [/宇都宮/g, 'うつのみや'],
   [/承ります/g, 'うけたまわります'],
   [/承っております/g, 'うけたまわっております'],
   [/行っております/g, 'おこなっております'],
@@ -192,6 +228,11 @@ const PRONUNCIATION_MAP: Array<[RegExp, string]> = [
 export function normalizeTextForSpeech(rawText: string): string {
   let text = rawText;
 
+  // 全角英数字・記号の正規化
+  text = text.replace(/[０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xfee0));
+  text = text.replace(/(\d)．(\d)/g, '$1.$2');
+  text = text.replace(/(\d)，(\d)/g, '$1,$2');
+
   // URLを削除
   text = text.replace(/https?:\/\/[^\s]+/g, '');
   // Markdownの装飾記号を削除
@@ -203,7 +244,7 @@ export function normalizeTextForSpeech(rawText: string): string {
   // 括弧内の補足は読点で自然に区切る
   text = text.replace(/[（(]([^）)]+)[）)]/g, '、$1、');
   // 波線（〜 / ～）を「から」に変換
-  text = text.replace(/(\d+)\s*[〜～~]\s*(\d+)/g, '$1から$2');
+  text = text.replace(/(\d+(?:\.\d+)?)\s*[〜～~]\s*(\d+(?:\.\d+)?)/g, '$1から$2');
 
   // 桁区切りカンマ付き数字を統合（例: 49,360 -> 49360）
   text = text.replace(/(\d{1,3}),(\d{3})/g, '$1$2');
@@ -214,10 +255,22 @@ export function normalizeTextForSpeech(rawText: string): string {
     return `${numberToJapaneseReading(yen)}えん`;
   });
 
+  // 「〜万〜千円」などの混在表記（例: 82万5千円 / 82万5000円）
+  text = text.replace(/(\d+)\s*万\s*(\d+)\s*千円/g, (_, manStr, senStr) => {
+    const yen = parseInt(manStr, 10) * 10000 + parseInt(senStr, 10) * 1000;
+    return `${numberToJapaneseReading(yen)}えん`;
+  });
+
   // 整数万円（例: 121万円 -> ひゃくにじゅういちまんえん）
   text = text.replace(/(\d+)\s*万円/g, (_, numStr) => {
     const n = parseInt(numStr, 10);
     return `${numberToJapaneseReading(n)}まんえん`;
+  });
+
+  // 「〜万」のみ（例: 100万くらい -> ひゃくまんくらい）
+  text = text.replace(/(\d+)\s*万/g, (_, numStr) => {
+    const n = parseInt(numStr, 10);
+    return `${numberToJapaneseReading(n)}まん`;
   });
 
   // 円（例: 49360円 -> よんまんきゅうせんさんびゃくろくじゅうえん）
@@ -267,6 +320,16 @@ export function normalizeTextForSpeech(rawText: string): string {
   for (const [pattern, replacement] of PRONUNCIATION_MAP) {
     text = text.replace(pattern, replacement);
   }
+
+  // 残った半角数字（電話番号・番号・単体数字）をすべてひらがな読みに変換してCartesiaの英語読み・スキップを防止
+  text = text.replace(/(\d+)\.(\d+)/g, (_, a, b) => {
+    const bDigits = String(b)
+      .split('')
+      .map((d) => ['ぜろ', 'いち', 'に', 'さん', 'よん', 'ご', 'ろく', 'なな', 'はち', 'きゅう'][Number(d)] ?? d)
+      .join('');
+    return `${numberToJapaneseReading(parseInt(a, 10))}てん${bDigits}`;
+  });
+  text = text.replace(/\d+/g, (numStr) => numberToJapaneseReading(parseInt(numStr, 10)));
 
   // 連続空白・改行を整理
   text = text
