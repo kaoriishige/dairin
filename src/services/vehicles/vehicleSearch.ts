@@ -1,4 +1,5 @@
 import type { CustomerPreferences, Vehicle } from '../../types';
+import { normalizeNumericStrings } from '../common/numberNormalization';
 
 export interface VehicleSearchResult {
   exactMatches: Vehicle[];
@@ -6,11 +7,7 @@ export interface VehicleSearchResult {
 }
 
 export function parseBudgetYenFromText(text: string): number | null {
-  const normalized = text
-    .replace(/[０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xfee0))
-    .replace(/．/g, '.')
-    .replace(/，/g, ',')
-    .replace(/\d{1,3}(?:,\d{3})+/g, (m) => m.replace(/,/g, ''));
+  const normalized = normalizeNumericStrings(text);
 
   const manMatch = normalized.match(/(\d+(?:\.\d+)?)\s*万\s*円?/);
   if (manMatch) {

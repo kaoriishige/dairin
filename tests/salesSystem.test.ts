@@ -8,6 +8,7 @@ import discrepanciesData from '../data/knowledge/discrepancies.json';
 import { normalizeTextForSpeech, splitIntoSpeechChunks } from '../src/services/audio/speechTextNormalizer';
 import { estimateVowelFromSpectrum } from '../src/services/audio/elevenLabsPlayer';
 import { searchVehicles, parseBudgetYenFromText } from '../src/services/vehicles/vehicleSearch';
+import { enforceSalesPolicy } from '../src/services/sales/salesPolicy';
 import { searchKnowledgeEntries, searchServices } from '../src/services/knowledge/ragSearch';
 import { detectPromptInjection, sanitizeUserInput } from '../netlify/functions/_shared/security';
 import type { KnowledgeEntry, ServiceInfo, Vehicle } from '../src/types';
@@ -142,5 +143,69 @@ describe('オートギャラリーダイリン AI営業システム 検証テス
     for (const file of requiredParts) {
       expect(fs.existsSync(path.join(partsDir, file))).toBe(true);
     }
+  });
+
+  it('システム確定ルール（salesPolicy）：条件未確認の初回提案禁止・予算上限厳守・0件時の店舗案内強制が機能すること', () => {
+    // 1. 初回（条件なし）はAIが車両IDを返しても除外される
+    const firstTurn = enforceSalesPolicy({
+      userMessage: '中古車を探しています。相談したいです。',
+      vehicles,
+      mergedPrefs: { purpose: 'used_car', requiredFeatures: [] },
+      parsed: {
+        replyDisplayText: 'ご希望の条件を教えてください。',
+        recommendedVehicleIds: ['veh-wagon-r-2017'],
+        salesPurpose: 'used_car',
+      },
+      exactMatches: [],
+    });
+    expect(firstTurn.recommendedVehicleIds).toEqual([]);
+
+    // 2. 1,000,000円以内のとき、121万円のアルトラパンをAIが返しても除外され、82.5万円のワゴンRのみが残る
+    const under1m = searchVehicles(vehicles, { budgetMaxYen: 1_000_000 }, '中古車で、1,000,000円以内');
+    const budgetGuard = enforceSalesPolicy({
+      userMessage: '中古車で、1,000,000円以内',
+      vehicles,
+      mergedPrefs: { purpose: 'used_car', budgetMaxYen: 1_000_000, requiredFeatures: [] },
+      parsed: {
+        replyDisplayText: 'ワゴンRとアルトラパンがございます。',
+        recommendedVehicleIds: ['veh-wagon-r-2017', 'veh-alto-lapin-2018'],
+        salesPurpose: 'used_car',
+      },
+      exactMatches: under1m.exactMatches,
+    });
+    expect(budgetGuard.recommendedVehicleIds).toEqual(['veh-wagon-r-2017']);
+    expect(budgetGuard.displayText).toContain('下記のスズキ ワゴンRをご覧ください');
+
+    // 3. 500,000円以内で該当0件のとき、「少々お待ちください」で終わらず店舗案内へ置き換わる
+    const noMatch = enforceSalesPolicy({
+      userMessage: '軽自動車で500,000円以内で探しています。',
+      vehicles,
+      mergedPrefs: {
+        purpose: 'used_car',
+        budgetMaxYen: 500_000,
+        preferredCarType: '軽自動車',
+        requiredFeatures: [],
+      },
+      parsed: {
+        replyDisplayText: 'かしこまりました！軽自動車で500,000円以内ですね。少々お待ちください。',
+        recommendedVehicleIds: ['veh-wagon-r-2017'],
+        salesPurpose: 'used_car',
+      },
+      exactMatches: [],
+    });
+    expect(noMatch.recommendedVehicleIds).toEqual([]);
+    expect(noMatch.displayText).toContain('見つかりませんでした');
+    expect(noMatch.displayText).toContain('0287-36-6011');
+  });
+
+  it('音声変換品質保証：年式・走行距離・各種金額・電話番号の変換後に半角数字が残らないこと', () => {
+    const sample =
+      'スズキ ワゴンR（2017年式・走行距離29,000km）は本体価格82.5万円、1,000,000円以内でお探しなら0287-36-6011までお電話ください。';
+    const speech = normalizeTextForSpeech(sample);
+    expect(speech).not.toMatch(/[0-9]/);
+    expect(speech).toContain('にせんじゅうななねんしき');
+    expect(speech).toContain('にまんきゅうせんキロ');
+    expect(speech).toContain('はちじゅうにまんごせんえん');
+    expect(speech).toContain('ひゃくまんえん');
   });
 });

@@ -1,8 +1,10 @@
+import { normalizeNumericStrings } from '../common/numberNormalization';
+
 /**
- * 画面表示用テキストから、ElevenLabs 日本語音声合成で読み間違いが起きない
+ * 画面表示用テキストから、音声合成で読み間違いが起きない
  * 読み上げ専用テキストを生成する。
- * 特に誤読されやすい漢字・自動車専門用語・地名・数字・助数詞・英略語を
- * 正確な「ひらがな・カタカナ」表記へ変換する。
+ * 一般の日本語漢字は自然なイントネーション維持のため残し、
+ * 数字・年式・金額・走行距離・英略語・難読固有名詞のみを正確に変換する。
  */
 
 function numberToJapaneseReading(num: number): string {
@@ -181,12 +183,8 @@ const PRONUNCIATION_MAP: Array<[RegExp, string]> = [
 ];
 
 export function normalizeTextForSpeech(rawText: string): string {
-  let text = rawText;
-
-  // 全角英数字・記号の正規化
-  text = text.replace(/[０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xfee0));
-  text = text.replace(/(\d)．(\d)/g, '$1.$2');
-  text = text.replace(/(\d)，(\d)/g, '$1,$2');
+  // 全角英数字・記号・桁区切りカンマの共通正規化
+  let text = normalizeNumericStrings(rawText);
 
   // LLMが生成した漢数字の年式・距離・金額を半角数字へ変換（例: 二千十七年 -> 2017年, 二万九千キロ -> 29000キロ, 八十二万五千円 -> 825000円）
   text = text.replace(/([〇零一二三四五六七八九十百千万億]+)\s*(ねんしき|ねん|年式|年|まんえん|万円|えん|円|キロ|km|だい|台|にん|人|かげつ|ヶ月|か月)/gi, (full, kanjiPart, unitPart) => {
@@ -216,9 +214,6 @@ export function normalizeTextForSpeech(rawText: string): string {
   text = text.replace(/[（(]([^）)]+)[）)]/g, '、$1、');
   // 波線（〜 / ～）を「から」に変換
   text = text.replace(/(\d+(?:\.\d+)?)\s*[〜～~]\s*(\d+(?:\.\d+)?)/g, '$1から$2');
-
-  // 桁区切りカンマ付き数字を統合（例: 49,360 -> 49360, 1,000,000 -> 1000000）
-  text = text.replace(/\d{1,3}(?:,\d{3})+/g, (match) => match.replace(/,/g, ''));
 
   // 小数付き万円（例: 82.5万円 -> 、はちじゅうにまんごせんえん、、1.1万円 -> 、いちまんいっせんえん、）
   text = text.replace(/(\d+)\.(\d+)\s*万円/g, (_, intPart, decPart) => {

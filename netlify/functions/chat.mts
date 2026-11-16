@@ -4,6 +4,7 @@ import type { ChatMessage, CustomerPreferences, SalesPurpose } from '../../src/t
 import { normalizeTextForSpeech } from '../../src/services/audio/speechTextNormalizer';
 import { searchKnowledgeEntries, searchServices } from '../../src/services/knowledge/ragSearch';
 import { parseBudgetYenFromText, searchVehicles } from '../../src/services/vehicles/vehicleSearch';
+import { enforceSalesPolicy } from '../../src/services/sales/salesPolicy';
 import { loadAllKnowledgeData } from './_shared/dataLoader';
 import salesManualData from '../../data/knowledge/sales_manual.json';
 import {
@@ -253,64 +254,21 @@ nearMatches: ${JSON.stringify(
       parsed = { replyDisplayText: rawContent, replySpeechText: rawContent };
     }
 
-    // 実在する車両IDのみを厳格に許可（LLMによる架空ID防止）
-    // ただし、まだ購入条件（予算・車種・メーカー・用途・人数・装備・具体的な車名指定）が一切確認できていない初回は、必ず希望ヒアリングを優先し車両カードは出さない
-    const hasAnyCondition =
-      Boolean(mergedPrefs.budgetMaxYen) ||
-      Boolean(mergedPrefs.preferredCarType) ||
-      Boolean(mergedPrefs.preferredMaker) ||
-      Boolean(mergedPrefs.usagePurpose) ||
-      Boolean(mergedPrefs.passengerCount) ||
-      (mergedPrefs.requiredFeatures?.length ?? 0) > 0 ||
-      Boolean(parsed.updatedPreferences?.budgetMaxYen) ||
-      Boolean(parsed.updatedPreferences?.preferredCarType) ||
-      Boolean(parsed.updatedPreferences?.preferredMaker) ||
-      Boolean(parsed.updatedPreferences?.usagePurpose) ||
-      Boolean(parsed.updatedPreferences?.passengerCount) ||
-      (parsed.updatedPreferences?.requiredFeatures?.length ?? 0) > 0 ||
-      vehicles.some((v) => userMessage.includes(v.modelName) || userMessage.includes(v.maker));
-
-    const effectiveBudgetMax =
-      mergedPrefs.budgetMaxYen ?? parsed.updatedPreferences?.budgetMaxYen ?? null;
-    const vehicleMap = new Map(vehicles.map((v) => [v.id, v]));
-    const recommendedVehicleIds = hasAnyCondition
-      ? (parsed.recommendedVehicleIds ?? [])
-          .filter((id) => {
-            const v = vehicleMap.get(id);
-            if (!v) return false;
-            if (effectiveBudgetMax && v.basePriceYen && v.basePriceYen > effectiveBudgetMax) {
-              return false;
-            }
-            return true;
-          })
-          .slice(0, 3)
-      : [];
-
-    let displayText =
-      parsed.replyDisplayText?.trim() ||
-      'お問い合わせありがとうございます。詳しくお伺いできますでしょうか。';
-
-    let rawSpeechText = parsed.replySpeechText?.trim() || displayText;
-
-    // 車両画像（カード）を表示する場合は、説明の最後に必ず「下記の〇〇をご覧ください」と誘導する
-    if (recommendedVehicleIds.length > 0) {
-      const recVehicles = recommendedVehicleIds
-        .map((id) => vehicles.find((v) => v.id === id))
-        .filter((v): v is NonNullable<typeof v> => Boolean(v));
-      const vehicleNames = recVehicles.map((v) => `${v.maker} ${v.modelName}`).join('・');
-      if (vehicleNames && !displayText.includes('ご覧ください')) {
-        displayText = `${displayText}\n下記の${vehicleNames}をご覧ください。`;
-      }
-      if (vehicleNames && !rawSpeechText.includes('ご覧ください')) {
-        rawSpeechText = `${rawSpeechText} 下記の、${vehicleNames}をご覧ください。`;
-      }
-    }
+    const { displayText, rawSpeechText, recommendedVehicleIds, effectiveBudgetMax } =
+      enforceSalesPolicy({
+        userMessage,
+        vehicles,
+        mergedPrefs,
+        parsed,
+        exactMatches: vehicleSearch.exactMatches,
+      });
 
     const speechText = normalizeTextForSpeech(rawSpeechText);
 
     const updatedPreferences: CustomerPreferences = {
       ...mergedPrefs,
       ...(parsed.updatedPreferences ?? {}),
+      budgetMaxYen: effectiveBudgetMax,
       purpose: parsed.salesPurpose ?? mergedPrefs.purpose,
       requiredFeatures: Array.from(
         new Set([
