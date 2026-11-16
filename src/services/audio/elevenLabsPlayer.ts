@@ -197,6 +197,106 @@ export class ElevenLabsStreamingPlayer {
     this.rafId = requestAnimationFrame(tick);
   }
 
+  private async playAudioUrlWithSync(
+    audio: HTMLAudioElement,
+    url: string,
+    myToken: number,
+    maxDurationMs: number,
+    onActualAudioStart: () => void,
+    onAudioLevel?: (lvl: number, vowel?: MouthVowelShape) => void
+  ): Promise<void> {
+    await new Promise<void>((resolve, reject) => {
+      let settled = false;
+      let started = false;
+      let watchdogTimer: ReturnType<typeof setInterval> | null = null;
+      let maxTimer: ReturnType<typeof setTimeout> | null = null;
+
+      const notifyStarted = () => {
+        if (started || settled || myToken !== this.playbackToken) return;
+        started = true;
+        this.isPlayingFlag = true;
+        onActualAudioStart();
+        this.startLevelPulse(onAudioLevel);
+      };
+
+      const cleanup = () => {
+        audio.onplaying = null;
+        audio.ontimeupdate = null;
+        audio.onended = null;
+        audio.onerror = null;
+        if (watchdogTimer) {
+          clearInterval(watchdogTimer);
+          watchdogTimer = null;
+        }
+        if (maxTimer) {
+          clearTimeout(maxTimer);
+          maxTimer = null;
+        }
+        if (this.rafId !== null) {
+          cancelAnimationFrame(this.rafId);
+          this.rafId = null;
+        }
+      };
+
+      const finishOk = () => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        resolve();
+      };
+
+      const finishErr = (err: Error) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        reject(err);
+      };
+
+      audio.src = url;
+      audio.volume = this.volume;
+
+      // 実際に音声のデコード・出力が始まった瞬間にのみ口パクを開始する
+      audio.onplaying = () => {
+        if (audio.currentTime > 0 || audio.readyState >= 2) {
+          notifyStarted();
+        }
+      };
+      audio.ontimeupdate = () => {
+        if (audio.currentTime > 0.01) {
+          notifyStarted();
+        }
+      };
+      audio.onended = () => finishOk();
+      audio.onerror = () => finishErr(new Error('音声の再生に失敗しました。'));
+
+      // モバイルブラウザ等で onended / onplaying が遅延・欠落した場合の監視タイマー
+      watchdogTimer = setInterval(() => {
+        if (myToken !== this.playbackToken) {
+          finishOk();
+          return;
+        }
+        if (!started && !audio.paused && audio.currentTime > 0.01) {
+          notifyStarted();
+        }
+        if (
+          audio.ended ||
+          (Number.isFinite(audio.duration) &&
+            audio.duration > 0 &&
+            audio.currentTime >= audio.duration - 0.04) ||
+          (audio.paused && audio.currentTime > 0.15)
+        ) {
+          finishOk();
+        }
+      }, 60);
+
+      maxTimer = setTimeout(() => {
+        finishOk();
+      }, maxDurationMs);
+
+      audio.play().catch(finishErr);
+    });
+  }
+
   public async playStaticAudioUrl(
     url: string,
     callbacks: TtsPlaybackCallbacks = {}
@@ -204,24 +304,16 @@ export class ElevenLabsStreamingPlayer {
     this.stop();
     const myToken = this.playbackToken;
     const audio = this.getOrCreateAudioElement();
-    this.isPlayingFlag = true;
-    callbacks.onStart?.();
 
     try {
-      await new Promise<void>((resolve, reject) => {
-        audio.src = url;
-        audio.volume = this.volume;
-
-        audio.onended = () => {
-          resolve();
-        };
-        audio.onerror = () => {
-          reject(new Error('音声の再生に失敗しました。'));
-        };
-
-        this.startLevelPulse(callbacks.onAudioLevel);
-        audio.play().catch(reject);
-      });
+      await this.playAudioUrlWithSync(
+        audio,
+        url,
+        myToken,
+        30000,
+        () => callbacks.onStart?.(),
+        callbacks.onAudioLevel
+      );
 
       if (myToken === this.playbackToken) {
         this.isPlayingFlag = false;
@@ -290,12 +382,6 @@ export class ElevenLabsStreamingPlayer {
         const blob = await blobPromise;
         if (myToken !== this.playbackToken) return false;
 
-        if (!startedCallbackFired) {
-          startedCallbackFired = true;
-          this.isPlayingFlag = true;
-          callbacks.onStart?.();
-        }
-
         if (this.activeObjectUrl) {
           URL.revokeObjectURL(this.activeObjectUrl);
         }
@@ -303,75 +389,26 @@ export class ElevenLabsStreamingPlayer {
         this.activeObjectUrl = objectUrl;
         const audio = this.getOrCreateAudioElement();
 
-        await new Promise<void>((resolve, reject) => {
-          let settled = false;
-          let watchdogTimer: ReturnType<typeof setInterval> | null = null;
-          let maxTimer: ReturnType<typeof setTimeout> | null = null;
-
-          const cleanup = () => {
-            if (watchdogTimer) {
-              clearInterval(watchdogTimer);
-              watchdogTimer = null;
-            }
-            if (maxTimer) {
-              clearTimeout(maxTimer);
-              maxTimer = null;
-            }
-            if (this.rafId !== null) {
-              cancelAnimationFrame(this.rafId);
-              this.rafId = null;
-            }
-            if (this.activeObjectUrl === objectUrl) {
-              URL.revokeObjectURL(objectUrl);
-              this.activeObjectUrl = null;
-            }
-          };
-
-          const finishOk = () => {
-            if (settled) return;
-            settled = true;
-            cleanup();
-            resolve();
-          };
-
-          const finishErr = (err: Error) => {
-            if (settled) return;
-            settled = true;
-            cleanup();
-            reject(err);
-          };
-
-          audio.src = objectUrl;
-          audio.volume = this.volume;
-
-          audio.onended = () => finishOk();
-          audio.onerror = () => finishErr(new Error('音声の再生に失敗しました。'));
-
-          // モバイルブラウザ等で onended が遅延・欠落した場合でも確実に口パクを停止する監視タイマー
-          watchdogTimer = setInterval(() => {
-            if (myToken !== this.playbackToken) {
-              finishOk();
-              return;
-            }
-            if (
-              audio.ended ||
-              (Number.isFinite(audio.duration) &&
-                audio.duration > 0 &&
-                audio.currentTime >= audio.duration - 0.04) ||
-              (audio.paused && audio.currentTime > 0.15)
-            ) {
-              finishOk();
-            }
-          }, 120);
-
-          const maxDurationMs = Math.max(8000, text.length * 320);
-          maxTimer = setTimeout(() => {
-            finishOk();
-          }, maxDurationMs);
-
-          this.startLevelPulse(callbacks.onAudioLevel);
-          audio.play().catch(finishErr);
-        });
+        try {
+          await this.playAudioUrlWithSync(
+            audio,
+            objectUrl,
+            myToken,
+            Math.max(8000, text.length * 320),
+            () => {
+              if (!startedCallbackFired) {
+                startedCallbackFired = true;
+                callbacks.onStart?.();
+              }
+            },
+            callbacks.onAudioLevel
+          );
+        } finally {
+          if (this.activeObjectUrl === objectUrl) {
+            URL.revokeObjectURL(objectUrl);
+            this.activeObjectUrl = null;
+          }
+        }
       }
 
       if (myToken === this.playbackToken) {
