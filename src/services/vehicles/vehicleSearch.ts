@@ -6,11 +6,17 @@ export interface VehicleSearchResult {
 }
 
 export function parseBudgetYenFromText(text: string): number | null {
-  const manMatch = text.match(/(\d+(?:\.\d+)?)\s*万\s*円?/);
+  const normalized = text
+    .replace(/[０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xfee0))
+    .replace(/．/g, '.')
+    .replace(/，/g, ',')
+    .replace(/\d{1,3}(?:,\d{3})+/g, (m) => m.replace(/,/g, ''));
+
+  const manMatch = normalized.match(/(\d+(?:\.\d+)?)\s*万\s*円?/);
   if (manMatch) {
     return Math.round(parseFloat(manMatch[1]) * 10000);
   }
-  const yenMatch = text.match(/(\d{6,8})\s*円/);
+  const yenMatch = normalized.match(/(\d{5,9})\s*円/);
   if (yenMatch) {
     return parseInt(yenMatch[1], 10);
   }
@@ -43,8 +49,6 @@ export function searchVehicles(
     if (budgetMax && v.basePriceYen) {
       if (v.basePriceYen <= budgetMax) {
         score += 4;
-      } else if (v.basePriceYen <= budgetMax * 1.25) {
-        score += 1; // 予算を少し超えるが近い候補
       } else {
         disqualified = true;
       }
@@ -82,11 +86,15 @@ export function searchVehicles(
     .sort((a, b) => b.score - a.score)
     .map((x) => x.vehicle);
 
-  const nearMatches = scored
-    .filter((x) => !exactMatches.includes(x.vehicle))
-    .sort((a, b) => (a.vehicle.basePriceYen ?? 99999999) - (b.vehicle.basePriceYen ?? 99999999))
-    .slice(0, 2)
-    .map((x) => x.vehicle);
+  const nearMatches =
+    budgetMax && exactMatches.length > 0
+      ? []
+      : scored
+          .filter((x) => !exactMatches.includes(x.vehicle) && (!budgetMax || !x.disqualified || exactMatches.length === 0))
+          .filter((x) => !wantsKei || x.vehicle.category === '軽自動車')
+          .sort((a, b) => (a.vehicle.basePriceYen ?? 99999999) - (b.vehicle.basePriceYen ?? 99999999))
+          .slice(0, 2)
+          .map((x) => x.vehicle);
 
   return { exactMatches, nearMatches };
 }

@@ -32,6 +32,15 @@ describe('オートギャラリーダイリン AI営業システム 検証テス
     const res = searchVehicles(vehicles, { budgetMaxYen: budget, preferredCarType: '軽自動車' }, '100万円くらいで軽自動車を探しています');
     expect(res.exactMatches.some((v) => v.modelName === 'ワゴンR')).toBe(true);
     expect(res.exactMatches.every((v) => v.category === '軽自動車')).toBe(true);
+    expect(res.exactMatches.every((v) => (v.basePriceYen ?? 0) <= 1_000_000)).toBe(true);
+    expect(res.nearMatches.length).toBe(0);
+
+    expect(parseBudgetYenFromText('中古車で、1,000,000円以内で探しています')).toBe(1_000_000);
+    expect(parseBudgetYenFromText('１，０００，０００円以内')).toBe(1_000_000);
+    const commaRes = searchVehicles(vehicles, {}, '中古車で、1,000,000円以内');
+    expect(commaRes.exactMatches.length).toBe(1);
+    expect(commaRes.exactMatches[0].modelName).toBe('ワゴンR');
+    expect(commaRes.nearMatches.length).toBe(0);
   });
 
   it('テスト2：家族向け・スライドドア希望でスペーシア・ムーヴキャンバス系が候補に入ること', () => {
