@@ -7,7 +7,7 @@ import { normalizeNumericStrings } from '../common/numberNormalization';
  * 数字・年式・金額・走行距離・英略語・難読固有名詞のみを正確に変換する。
  */
 
-function numberToJapaneseReading(num: number): string {
+function numberToJapaneseReading(num: number, isManUnit = false): string {
   if (num === 0) return 'ゼロ';
   if (!Number.isFinite(num) || num < 0) return String(num);
 
@@ -15,51 +15,73 @@ function numberToJapaneseReading(num: number): string {
   const smallUnits = ['', 'じゅう', 'ひゃく', 'せん'];
   const digits = ['', 'いち', 'に', 'さん', 'よん', 'ご', 'ろく', 'なな', 'はち', 'きゅう'];
 
-  function convertChunk(n: number): string {
-    let res = '';
+  function convertChunk(n: number, isLargeUnit: boolean): string {
+    const parts: string[] = [];
     const d3 = Math.floor(n / 1000) % 10;
     const d2 = Math.floor(n / 100) % 10;
     const d1 = Math.floor(n / 10) % 10;
     const d0 = n % 10;
 
     if (d3 > 0) {
-      if (d3 === 1) res += 'せん';
-      else if (d3 === 3) res += 'さんぜん';
-      else if (d3 === 8) res += 'はっせん';
-      else res += digits[d3] + smallUnits[3];
+      if (d3 === 1) parts.push(isLargeUnit ? 'いっせん' : 'せん');
+      else if (d3 === 3) parts.push('さんぜん');
+      else if (d3 === 8) parts.push('はっせん');
+      else parts.push(digits[d3] + smallUnits[3]);
     }
     if (d2 > 0) {
-      if (d2 === 1) res += 'ひゃく';
-      else if (d2 === 3) res += 'さんびゃく';
-      else if (d2 === 6) res += 'ろっぴゃく';
-      else if (d2 === 8) res += 'はっぴゃく';
-      else res += digits[d2] + smallUnits[2];
+      if (d2 === 1) parts.push('ひゃく');
+      else if (d2 === 3) parts.push('さんびゃく');
+      else if (d2 === 6) parts.push('ろっぴゃく');
+      else if (d2 === 8) parts.push('はっぴゃく');
+      else parts.push(digits[d2] + smallUnits[2]);
     }
+    let tail = '';
     if (d1 > 0) {
-      if (d1 === 1) res += 'じゅう';
-      else res += digits[d1] + smallUnits[1];
+      if (d1 === 1) tail += 'じゅう';
+      else tail += digits[d1] + smallUnits[1];
     }
     if (d0 > 0) {
-      res += digits[d0];
+      tail += digits[d0];
     }
-    return res;
+    if (tail) parts.push(tail);
+    return parts.join(' ');
   }
 
   let remaining = Math.floor(num);
   let unitIdx = 0;
-  let result = '';
+  const chunks: string[] = [];
 
   while (remaining > 0 && unitIdx < units.length) {
     const chunk = remaining % 10000;
     if (chunk > 0) {
-      const chunkStr = convertChunk(chunk);
-      result = chunkStr + units[unitIdx] + result;
+      const chunkStr = convertChunk(chunk, isManUnit || unitIdx > 0);
+      chunks.unshift(chunkStr + units[unitIdx]);
     }
     remaining = Math.floor(remaining / 10000);
     unitIdx++;
   }
 
-  return result || String(num);
+  return chunks.join(' ') || String(num);
+}
+
+function formatCounterReading(num: number, type: 'fun' | 'hon'): string {
+  const base = numberToJapaneseReading(num);
+  const lastDigit = num % 10;
+  const lastTwo = num % 100;
+  if (type === 'fun') {
+    if (lastTwo === 10 || lastDigit === 0) return `${base.replace(/じゅう$/, 'じゅっ')}ぷん`;
+    if (lastDigit === 1) return `${base.replace(/いち$/, 'いっ')}ぷん`;
+    if (lastDigit === 3 || lastDigit === 4) return `${base}ぷん`;
+    if (lastDigit === 6) return `${base.replace(/ろく$/, 'ろっ')}ぷん`;
+    if (lastDigit === 8) return `${base.replace(/はち$/, 'はっ')}ぷん`;
+    return `${base}ふん`;
+  }
+  if (lastTwo === 10 || lastDigit === 0) return `${base.replace(/じゅう$/, 'じゅっ')}ぽん`;
+  if (lastDigit === 1) return `${base.replace(/いち$/, 'いっ')}ぽん`;
+  if (lastDigit === 3) return `${base}ぼん`;
+  if (lastDigit === 6) return `${base.replace(/ろく$/, 'ろっ')}ぽん`;
+  if (lastDigit === 8) return `${base.replace(/はち$/, 'はっ')}ぽん`;
+  return `${base}ほん`;
 }
 
 function kanjiNumberToInt(kanji: string): number | null {
@@ -215,60 +237,60 @@ export function normalizeTextForSpeech(rawText: string): string {
   // 波線（〜 / ～）を「から」に変換
   text = text.replace(/(\d+(?:\.\d+)?)\s*[〜～~]\s*(\d+(?:\.\d+)?)/g, '$1から$2');
 
-  // 小数付き万円（例: 82.5万円 -> 、はちじゅうにまんごせんえん、、1.1万円 -> 、いちまんいっせんえん、）
+  // 小数付き万円（例: 82.5万円 -> はちじゅうにまん ごせん円）
   text = text.replace(/(\d+)\.(\d+)\s*万円/g, (_, intPart, decPart) => {
     const yen = Math.round(parseFloat(`${intPart}.${decPart}`) * 10000);
-    return `、${numberToJapaneseReading(yen)}えん、`;
+    return `${numberToJapaneseReading(yen)}円`;
   });
 
-  // 「〜万〜千円」などの混在表記（例: 82万5千円 / 82万5000円）
+  // 「〜万〜千円」などの混在表記（例: 82万5千円 / 82万5000円 -> はちじゅうにまん ごせん円）
   text = text.replace(/(\d+)\s*万\s*(\d+)\s*千円/g, (_, manStr, senStr) => {
     const yen = parseInt(manStr, 10) * 10000 + parseInt(senStr, 10) * 1000;
-    return `、${numberToJapaneseReading(yen)}えん、`;
+    return `${numberToJapaneseReading(yen)}円`;
   });
 
-  // 整数万円（例: 121万円 -> 、ひゃくにじゅういちまんえん、）
+  // 整数万円（例: 121万円 -> ひゃく にじゅういち万円, 1000万円 -> いっせん万円）
   text = text.replace(/(\d+)\s*万円/g, (_, numStr) => {
     const n = parseInt(numStr, 10);
-    return `、${numberToJapaneseReading(n)}まんえん、`;
+    return `${numberToJapaneseReading(n, true)}万円`;
   });
 
-  // 「〜万」のみ（例: 100万くらい -> 、ひゃくまん、くらい）
+  // 「〜万」のみ（例: 100万くらい -> ひゃくまんくらい）
   text = text.replace(/(\d+)\s*万/g, (_, numStr) => {
     const n = parseInt(numStr, 10);
-    return `、${numberToJapaneseReading(n)}まん`;
+    return `${numberToJapaneseReading(n, true)}まん`;
   });
 
-  // 円（例: 49360円 -> 、よんまんきゅうせんさんびゃくろくじゅうえん、）
+  // 円（例: 49360円 -> よんまん きゅうせん さんびゃく ろくじゅう円, 1000000円 -> ひゃくまん円）
   text = text.replace(/[¥￥]?\s*(\d+)\s*円/g, (_, numStr) => {
     const n = parseInt(numStr, 10);
-    return `、${numberToJapaneseReading(n)}えん、`;
+    return `${numberToJapaneseReading(n)}円`;
   });
   text = text.replace(/[¥￥](\d+)/g, (_, numStr) => {
     const n = parseInt(numStr, 10);
-    return `、${numberToJapaneseReading(n)}えん、`;
+    return `${numberToJapaneseReading(n)}円`;
   });
 
-  // 走行距離 km / キロ（例: 44000km / 29000キロ -> 、よんまんよんせんキロ、）
+  // 走行距離 km / キロ（例: 44000km / 29000キロ -> にまん きゅうせんキロ）
   text = text.replace(/(\d+)\s*(?:km|キロ)/gi, (_, numStr) => {
     const n = parseInt(numStr, 10);
-    return `、${numberToJapaneseReading(n)}キロ、`;
+    return `${numberToJapaneseReading(n)}キロ`;
   });
 
-  // 年式（2017年式 / 2017ねんしき -> 、にせんじゅうななねんしき、）
+  // 年式（2017年式 / 2017ねんしき -> にせん じゅうなな年式）
   text = text.replace(/(\d{4})\s*(?:ねんしき|年式)/g, (_, numStr) => {
     const n = parseInt(numStr, 10);
-    return `、${numberToJapaneseReading(n)}ねんしき、`;
+    return `${numberToJapaneseReading(n)}年式`;
   });
   text = text.replace(/(\d{4})\s*(?:ねん|年)/g, (_, numStr) => {
     const n = parseInt(numStr, 10);
-    return `、${numberToJapaneseReading(n)}ねん、`;
+    return `${numberToJapaneseReading(n)}年`;
   });
 
-  // ひらがな「えん」が付いた数値（例: 825000えん -> 、はちじゅうにまんごせんえん、）
+  // ひらがな「えん」が付いた数値（例: 825000えん -> はちじゅうにまん ごせん円）
   text = text.replace(/(\d+)\s*えん/g, (_, numStr) => {
     const n = parseInt(numStr, 10);
-    return `、${numberToJapaneseReading(n)}えん、`;
+    return `${numberToJapaneseReading(n)}円`;
   });
 
   // 排気量 cc
@@ -288,10 +310,10 @@ export function normalizeTextForSpeech(rawText: string): string {
 
   // 項目数・分・本・台・店舗
   text = text.replace(/(\d+)\s*項目/g, (_, n) => `${numberToJapaneseReading(parseInt(n, 10))}こうもく`);
-  text = text.replace(/(\d+)\s*分/g, (_, n) => `${numberToJapaneseReading(parseInt(n, 10))}ぷん`);
-  text = text.replace(/(\d+)\s*本/g, (_, n) => `${numberToJapaneseReading(parseInt(n, 10))}ほん`);
-  text = text.replace(/(\d+)\s*台/g, (_, n) => `${numberToJapaneseReading(parseInt(n, 10))}だい`);
-  text = text.replace(/(\d+)\s*店舗/g, (_, n) => `${numberToJapaneseReading(parseInt(n, 10))}てんぽ`);
+  text = text.replace(/(\d+)\s*分/g, (_, n) => formatCounterReading(parseInt(n, 10), 'fun'));
+  text = text.replace(/(\d+)\s*本/g, (_, n) => formatCounterReading(parseInt(n, 10), 'hon'));
+  text = text.replace(/(\d+)\s*台/g, (_, n) => `${numberToJapaneseReading(parseInt(n, 10))}台`);
+  text = text.replace(/(\d+)\s*店舗/g, (_, n) => `${numberToJapaneseReading(parseInt(n, 10))}店舗`);
 
   for (const [pattern, replacement] of PRONUNCIATION_MAP) {
     text = text.replace(pattern, replacement);

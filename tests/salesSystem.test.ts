@@ -68,15 +68,15 @@ describe('オートギャラリーダイリン AI営業システム 検証テス
     const speech = normalizeTextForSpeech(raw);
     expect(speech).not.toContain('https://');
     expect(speech).toContain('ワゴンアール');
-    expect(speech).toContain('はちじゅうにまんごせんえん');
+    expect(speech).toContain('はちじゅうにまん ごせん円');
     expect(speech).toContain('ばんきん');
     expect(speech).toContain('おしはらいそうがく');
 
     // 1,000,000円などカンマが複数入る高額金額が正しくひらがな化され、軽自動車等の一般漢字は自然な発音のため保持されること
     expect(normalizeTextForSpeech('軽自動車の価格は1,000,000円です')).toContain('軽自動車');
-    expect(normalizeTextForSpeech('軽自動車の価格は1,000,000円です')).toContain('ひゃくまんえん');
-    expect(normalizeTextForSpeech('支払総額は１，５００，０００円です')).toContain('ひゃくごじゅうまんえん');
-    expect(normalizeTextForSpeech('2,345,678円')).toContain('にひゃくさんじゅうよんまんごせんろっぴゃくななじゅうはちえん');
+    expect(normalizeTextForSpeech('軽自動車の価格は1,000,000円です')).toContain('ひゃくまん円');
+    expect(normalizeTextForSpeech('支払総額は１，５００，０００円です')).toContain('ひゃく ごじゅうまん円');
+    expect(normalizeTextForSpeech('2,345,678円')).toContain('にひゃく さんじゅうよんまん ごせん ろっぴゃく ななじゅうはち円');
 
     const chunks = splitIntoSpeechChunks(speech, 40);
     expect(chunks.length).toBeGreaterThanOrEqual(1);
@@ -203,9 +203,12 @@ describe('オートギャラリーダイリン AI営業システム 検証テス
       'スズキ ワゴンR（2017年式・走行距離29,000km）は本体価格82.5万円、1,000,000円以内でお探しなら0287-36-6011までお電話ください。';
     const speech = normalizeTextForSpeech(sample);
     expect(speech).not.toMatch(/[0-9]/);
-    expect(speech).toContain('にせんじゅうななねんしき');
-    expect(speech).toContain('にまんきゅうせんキロ');
-    expect(speech).toContain('はちじゅうにまんごせんえん');
-    expect(speech).toContain('ひゃくまんえん');
+    expect(speech).toContain('にせん じゅうなな年式');
+    expect(speech).toContain('にまん きゅうせんキロ');
+    expect(speech).toContain('はちじゅうにまん ごせん円');
+    expect(speech).toContain('ひゃくまん円');
+
+    // 助数詞の音便（「1分=いっぷん」「10分=じゅっぷん」「3本=さんぼん」「1000万円=いっせん万円」）が自然であること
+    expect(normalizeTextForSpeech('1分と10分と3本と1000万円')).toBe('いっぷんとじゅっぷんとさんぼんといっせん万円');
   });
 });
