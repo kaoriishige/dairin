@@ -274,15 +274,11 @@ export function useSpeechRecognition(): UseSpeechRecognitionResult {
         if (!options?.silentOnAutoError) {
           const name = err instanceof Error ? err.name : '';
           if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
-            const isAndroid =
-              typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
             setErrorMessage(
-              isAndroid
-                ? 'マイクの使用が許可されていません。アドレスバー左のアイコン（またはChromeの設定＞サイトの設定＞マイク）で許可してください。LINE・メール等のアプリ内ブラウザの場合は右上メニュー（︙）から「Chromeで開く」をお試しください。'
-                : 'マイクの使用が許可されていません。ブラウザの設定でマイクを許可するか、メール・LINE内ブラウザの場合は「Safariで開く」をお試しください。'
+              'この画面ではマイクがオフになっているため、文字入力や下のボタンからそのままご相談いただけます。'
             );
           } else {
-            setErrorMessage('マイクの起動に失敗しました。下の文字入力欄をご利用ください。');
+            setErrorMessage('文字入力欄または下のボタンからそのままご相談いただけます。');
           }
         }
       }
@@ -372,7 +368,7 @@ export function useSpeechRecognition(): UseSpeechRecognitionResult {
           }
           if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
             setErrorMessage(
-              'マイクの使用が許可されていません。ブラウザの設定でマイクを許可するか、下の文字入力をご利用ください。'
+              'この画面ではマイクがオフになっているため、文字入力や下のボタンからそのままご相談いただけます。'
             );
           } else if (event.error === 'no-speech') {
             setErrorMessage('音声が聞き取れませんでした。「マイクで話す」を押してお話しください。');
