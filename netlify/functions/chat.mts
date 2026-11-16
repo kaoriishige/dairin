@@ -202,7 +202,7 @@ nearMatches: ${JSON.stringify(
 【出力JSONフォーマット（厳守）】
 {
   "replyDisplayText": "画面に表示する営業回答文（通常の読みやすい漢字かな交じり文）",
-  "replySpeechText": "OpenAI音声読み上げ用の自然な日本語文（URLや記号は含めず、自然な抑揚で読める漢字かな交じり文）",
+  "replySpeechText": "音声読み上げ用の自然な日本語文（URLや記号は含めず、自然な抑揚で読める漢字かな交じり文）",
   "recommendedVehicleIds": ["今回紹介する車両ID（なければ空配列）"],
   "salesPurpose": "used_car | new_car | budget_search | inspection | buyback | car_lease | body_paint | other | unknown",
   "updatedPreferences": {

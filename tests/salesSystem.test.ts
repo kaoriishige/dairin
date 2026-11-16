@@ -62,8 +62,9 @@ describe('オートギャラリーダイリン AI営業システム 検証テス
     expect(speech).toContain('ばんきん');
     expect(speech).toContain('おしはらいそうがく');
 
-    // 1,000,000円などカンマが複数入る高額金額が正しくひらがな化されること
-    expect(normalizeTextForSpeech('価格は1,000,000円です')).toContain('ひゃくまんえん');
+    // 1,000,000円などカンマが複数入る高額金額が正しくひらがな化され、軽自動車等の一般漢字は自然な発音のため保持されること
+    expect(normalizeTextForSpeech('軽自動車の価格は1,000,000円です')).toContain('軽自動車');
+    expect(normalizeTextForSpeech('軽自動車の価格は1,000,000円です')).toContain('ひゃくまんえん');
     expect(normalizeTextForSpeech('支払総額は１，５００，０００円です')).toContain('ひゃくごじゅうまんえん');
     expect(normalizeTextForSpeech('2,345,678円')).toContain('にひゃくさんじゅうよんまんごせんろっぴゃくななじゅうはちえん');
 
@@ -82,8 +83,8 @@ describe('オートギャラリーダイリン AI営業システム 検証テス
       'こんにちは！ オートギャラリー・ダイリンのAI営業アシスタントです。今日はどのようなお車をお探しですか？';
     const normalized = normalizeTextForSpeech(testGreeting);
     expect(normalized).toContain('エーアイ');
-    expect(normalized).toContain('えいぎょう');
-    expect(normalized).toContain('おくるま');
+    expect(normalized).toContain('営業');
+    expect(normalized).toContain('お車');
 
     // 無音時は口が閉じる ('closed')
     const silentBins = new Uint8Array(32);
