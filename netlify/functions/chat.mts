@@ -156,7 +156,7 @@ ${salesManualData.manuals
 9. 予約管理システムと未接続のため、来店相談時は「予約確定」とは言わず、お電話（0287-36-6011）やお問い合わせフォーム、公式LINEでのご連絡を案内する。
 10. 保険は一般的なサービス説明にとどめ、特定商品の推奨や引受判断は行わない。
 11. 画面表示用テキスト（replyDisplayText）は、お客様が画面で読みやすいよう通常の漢字・算用数字（例：「100万円」「2017年式」「82.5万円」「本体価格」「走行距離29,000km」）で作成すること。
-12. 音声読み上げ用テキスト（replySpeechText）は、漢数字（二千十七など）は絶対に使わず、算用数字（2017年・29,000km・82.5万円）またはひらがなで自然な話し言葉にすること（システム側で自動ひらがな変換されます）。
+12. 音声読み上げ用テキスト（replySpeechText）は、漢数字（二千十七、ゼロ二八七など）は絶対に使わず、電話番号（0287-39-5911等）や年式・距離・金額（2017年・29,000km・82.5万円）も必ず算用数字のままにすること（システム側で正確な日本語読みへ自動変換されます）。
 
 【既に確認済みのお客様条件】
 ${JSON.stringify(mergedPrefs, null, 2)}
@@ -281,7 +281,14 @@ nearMatches: ${JSON.stringify(
         conversationPlan,
       });
 
-    const speechText = normalizeTextForSpeech(rawSpeechText);
+    const displayHasPhone = /\b0\d{1,4}-\d{1,4}-\d{3,4}\b/.test(displayText);
+    const speechHasSamePhone = /\b0\d{1,4}-\d{1,4}-\d{3,4}\b/.test(rawSpeechText);
+    const speechSource =
+      /(?:ゼロ|〇)[一二三四五六七八九〇]{2,}/.test(rawSpeechText) || (displayHasPhone && !speechHasSamePhone)
+        ? displayText
+        : rawSpeechText;
+
+    const speechText = normalizeTextForSpeech(speechSource);
 
     const nextActiveVehicleId =
       recommendedVehicleIds.length > 0
