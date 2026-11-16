@@ -1,4 +1,5 @@
 import type { CustomerPreferences, SalesPurpose, Vehicle } from '../../types';
+import type { ConversationPlan } from './conversationPlanner';
 
 export interface ParsedChatOutput {
   replyDisplayText?: string;
@@ -15,6 +16,7 @@ export interface SalesPolicyInput {
   parsed: ParsedChatOutput;
   exactMatches: Vehicle[];
   introducedVehicleIds?: string[];
+  conversationPlan?: ConversationPlan;
 }
 
 export interface SalesPolicyResult {
@@ -38,7 +40,15 @@ const NO_MATCH_GUIDANCE_SPEECH =
  * - 車両カード提示時の誘導文言（「下記の〇〇をご覧ください。」）の保証
  */
 export function enforceSalesPolicy(input: SalesPolicyInput): SalesPolicyResult {
-  const { userMessage, vehicles, mergedPrefs, parsed, exactMatches, introducedVehicleIds = [] } = input;
+  const {
+    userMessage,
+    vehicles,
+    mergedPrefs,
+    parsed,
+    exactMatches,
+    introducedVehicleIds = [],
+    conversationPlan,
+  } = input;
 
   const effectiveBudgetMax =
     mergedPrefs.budgetMaxYen ?? parsed.updatedPreferences?.budgetMaxYen ?? null;
@@ -62,7 +72,9 @@ export function enforceSalesPolicy(input: SalesPolicyInput): SalesPolicyResult {
   const rawIds = parsed.recommendedVehicleIds ?? [];
 
   let recommendedVehicleIds: string[] = [];
-  if (hasAnyCondition) {
+  if (conversationPlan && !conversationPlan.allowVehicleRecommendation) {
+    recommendedVehicleIds = [];
+  } else if (hasAnyCondition) {
     recommendedVehicleIds = rawIds
       .filter((id) => {
         const v = vehicleMap.get(id);

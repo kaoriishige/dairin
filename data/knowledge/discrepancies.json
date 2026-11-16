@@ -49,5 +49,22 @@
     ],
     "status": "needs_confirmation",
     "detectedAt": "2026-11-15T11:36:00+09:00"
+  },
+  {
+    "id": "disc-holidays-notation",
+    "field": "定休日の表記差",
+    "description": "店舗紹介欄では「水・木曜（最終週の木曜は営業）」、FAQ欄では「毎週水曜と第1・第3木曜」と表記が異なる箇所があります。",
+    "sources": [
+      {
+        "url": "https://www.jp-dairin.jp/ (店舗紹介)",
+        "value": "水・木曜※最終週の木曜は空いております。"
+      },
+      {
+        "url": "https://www.jp-dairin.jp/ (FAQ)",
+        "value": "毎週水曜と第一第三木曜"
+      }
+    ],
+    "status": "needs_confirmation",
+    "detectedAt": "2026-11-16T10:56:00+09:00"
   }
 ]

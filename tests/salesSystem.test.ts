@@ -9,6 +9,7 @@ import { normalizeTextForSpeech, splitIntoSpeechChunks } from '../src/services/a
 import { estimateVowelFromSpectrum } from '../src/services/audio/elevenLabsPlayer';
 import { searchVehicles, parseBudgetYenFromText } from '../src/services/vehicles/vehicleSearch';
 import { enforceSalesPolicy } from '../src/services/sales/salesPolicy';
+import { buildConversationPlan } from '../src/services/sales/conversationPlanner';
 import { searchKnowledgeEntries, searchServices } from '../src/services/knowledge/ragSearch';
 import { detectPromptInjection, sanitizeUserInput } from '../netlify/functions/_shared/security';
 import type { KnowledgeEntry, ServiceInfo, Vehicle } from '../src/types';
@@ -227,5 +228,64 @@ describe('オートギャラリーダイリン AI営業システム 検証テス
 
     // 助数詞の音便（「1分=いっぷん」「10分=じゅっぷん」「3本=さんぼん」「1000万円=いっせん万円」）が自然であること
     expect(normalizeTextForSpeech('1分と10分と3本と1000万円')).toBe('いっぷんとじゅっぷんとさんぼんといっせん万円');
+  });
+
+  it('ステップ2（conversationPlanner）：プログラムが会話の行動計画を正確に決定すること', () => {
+    const basePrefs = { purpose: 'used_car' as const, requiredFeatures: [] };
+    // 1. 条件なし初回は ASK_CONDITION
+    const askPlan = buildConversationPlan({
+      userMessage: '中古車を探しています。相談したいです。',
+      prefs: basePrefs,
+      vehicles,
+      exactMatches: [],
+      introducedVehicleIds: [],
+    });
+    expect(askPlan.actionType).toBe('ASK_CONDITION');
+    expect(askPlan.allowVehicleRecommendation).toBe(false);
+
+    // 2. 1,000,000円以内の軽自動車は PROPOSE_VEHICLES でワゴンRを選定
+    const under1m = searchVehicles(vehicles, { budgetMaxYen: 1_000_000, preferredCarType: '軽自動車' }, '軽自動車 1,000,000円以内');
+    const propPlan = buildConversationPlan({
+      userMessage: '軽自動車で1,000,000円以内で探しています。',
+      prefs: basePrefs,
+      vehicles,
+      exactMatches: under1m.exactMatches,
+      introducedVehicleIds: [],
+    });
+    expect(propPlan.actionType).toBe('PROPOSE_VEHICLES');
+    expect(propPlan.preselectedVehicleIds).toEqual(['veh-wagon-r-2017']);
+
+    // 3. 総支払額質問は ANSWER_DECLINE_OR_CONTACT
+    const declinePlan = buildConversationPlan({
+      userMessage: 'ワゴンRの総支払額はいくらですか？',
+      prefs: basePrefs,
+      vehicles,
+      exactMatches: under1m.exactMatches,
+      introducedVehicleIds: ['veh-wagon-r-2017'],
+    });
+    expect(declinePlan.actionType).toBe('ANSWER_DECLINE_OR_CONTACT');
+    expect(declinePlan.allowVehicleRecommendation).toBe(false);
+
+    // 4. 修理・クレームは ANSWER_TROUBLE_OR_REPAIR
+    const troublePlan = buildConversationPlan({
+      userMessage: '車のバンパーを擦ってしまいました。修理代はいくらですか？',
+      prefs: basePrefs,
+      vehicles,
+      exactMatches: [],
+      introducedVehicleIds: [],
+    });
+    expect(troublePlan.actionType).toBe('ANSWER_TROUBLE_OR_REPAIR');
+    expect(troublePlan.allowVehicleRecommendation).toBe(false);
+
+    // 5. クレジットカードや車検等のFAQは ANSWER_SERVICE_OR_FAQ
+    const faqPlan = buildConversationPlan({
+      userMessage: '支払いにクレジットカードは使えますか？',
+      prefs: basePrefs,
+      vehicles,
+      exactMatches: [],
+      introducedVehicleIds: [],
+    });
+    expect(faqPlan.actionType).toBe('ANSWER_SERVICE_OR_FAQ');
+    expect(faqPlan.allowVehicleRecommendation).toBe(false);
   });
 });

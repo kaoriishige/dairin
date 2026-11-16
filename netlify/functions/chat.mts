@@ -3,8 +3,12 @@ import OpenAI from 'openai';
 import type { ChatMessage, CustomerPreferences, SalesPurpose } from '../../src/types';
 import { normalizeTextForSpeech } from '../../src/services/audio/speechTextNormalizer';
 import { searchKnowledgeEntries, searchServices } from '../../src/services/knowledge/ragSearch';
-import { parseBudgetYenFromText, searchVehicles } from '../../src/services/vehicles/vehicleSearch';
+import { searchVehicles } from '../../src/services/vehicles/vehicleSearch';
 import { enforceSalesPolicy } from '../../src/services/sales/salesPolicy';
+import {
+  buildConversationPlan,
+  extractPreferencesFromMessage,
+} from '../../src/services/sales/conversationPlanner';
 import { loadAllKnowledgeData } from './_shared/dataLoader';
 import salesManualData from '../../data/knowledge/sales_manual.json';
 import {
@@ -86,17 +90,22 @@ export default async (req: Request, context: Context) => {
       requiredFeatures: [],
     };
 
-    // 事前予算抽出（会話文脈の補助）
-    const parsedBudget = parseBudgetYenFromText(userMessage);
-    const mergedPrefs: CustomerPreferences = {
-      ...prefs,
-      budgetMaxYen: parsedBudget ?? prefs.budgetMaxYen ?? null,
-    };
+    // 事前条件抽出（会話文脈の補助）
+    const mergedPrefs: CustomerPreferences = extractPreferencesFromMessage(userMessage, prefs);
 
     // RAG検索＆車両検索
     const vehicleSearch = searchVehicles(vehicles, mergedPrefs, userMessage);
     const relevantKnowledge = searchKnowledgeEntries(knowledgeEntries, userMessage, 5);
     const relevantServices = searchServices(services, userMessage, 3);
+
+    // 「頭（判断）」：プログラム側で今回の行動計画を確定
+    const conversationPlan = buildConversationPlan({
+      userMessage,
+      prefs: mergedPrefs,
+      vehicles,
+      exactMatches: vehicleSearch.exactMatches,
+      introducedVehicleIds: body.introducedVehicleIds ?? [],
+    });
 
     const candidateVehicles =
       vehicleSearch.exactMatches.length > 0
@@ -106,6 +115,10 @@ export default async (req: Request, context: Context) => {
     const systemPrompt = `
 あなたは株式会社ジェイ・ピー「オートギャラリーダイリン」のAI女性営業アシスタントです。
 画面上の呼称は「ダイリン AI営業アシスタント」です。AIであることを隠さず、明るく丁寧で親しみやすい日本人女性営業スタッフとして接客してください。
+あなたの役割は「口（自然な日本語の会話表現）」です。以下の【今回の確定行動指示】に従って、事実のみを人間らしく温かく伝えてください。
+
+【今回の確定行動指示（プログラム決定事項・最優先）】
+${conversationPlan.instructionForLlm}
 
 【相談内容別の営業対応システム（必ずこの手順で接客すること）】
 ■ A.「中古車を探す」「予算から車を探す」の場合：
@@ -156,6 +169,9 @@ ${JSON.stringify(body.introducedVehicleIds ?? [])}
 電話: ${company.phone}
 定休日: ${company.holidays}
 営業時間: ${company.businessHours}
+お支払い方法: ${(company as { paymentMethods?: string[] }).paymentMethods?.join('・') ?? '現金・クレジットカード（VISA・Master）'}
+予約ルール: ${(company as { reservationPolicy?: string }).reservationPolicy ?? '事前予約推奨（車検は予約必須）'}
+4拠点一覧: ${JSON.stringify((company as { locations?: unknown[] }).locations ?? [])}
 
 【関連する営業知識（承認済み）】
 ${relevantKnowledge.map((k) => `・[${k.category}] ${k.title}: ${k.content}`).join('\n')}
@@ -262,6 +278,7 @@ nearMatches: ${JSON.stringify(
         parsed,
         exactMatches: vehicleSearch.exactMatches,
         introducedVehicleIds: body.introducedVehicleIds ?? [],
+        conversationPlan,
       });
 
     const speechText = normalizeTextForSpeech(rawSpeechText);
