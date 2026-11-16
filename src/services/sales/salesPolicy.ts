@@ -120,12 +120,32 @@ export function enforceSalesPolicy(input: SalesPolicyInput): SalesPolicyResult {
     parsed.salesPurpose === 'budget_search' ||
     parsed.salesPurpose === 'unknown';
 
+  const isStallingReply =
+    /お待ちください|お調べします|確認します/.test(displayText) &&
+    !displayText.includes('0287-36-6011') &&
+    !displayText.includes('見つかりません');
+
+  // 条件一致車両があるのにAIが「少々お待ちください」で止まった場合は、未紹介の一致車両を即座に提案する
+  const unintroducedExactMatches = exactMatches.filter((v) => !introducedSet.has(v.id));
+  if (
+    hasAnyCondition &&
+    isPurchaseContext &&
+    recommendedVehicleIds.length === 0 &&
+    unintroducedExactMatches.length > 0 &&
+    isStallingReply &&
+    !isDeclineOrContactGuidance
+  ) {
+    const picked = unintroducedExactMatches.slice(0, 2);
+    recommendedVehicleIds = picked.map((v) => v.id);
+    const summary = picked
+      .map((v) => `${v.maker} ${v.modelName}（${v.year ? `${v.year}年式、` : ''}${v.basePriceText}）`)
+      .join('、');
+    displayText = `ご希望の条件に合うお車として、${summary}がございます。ホームページ掲載車両ですので現在の在庫状況は店舗へご確認ください。`;
+    rawSpeechText = displayText;
+  }
+
   if (hasAnyCondition && isPurchaseContext && recommendedVehicleIds.length === 0 && exactMatches.length === 0 && !isDeclineOrContactGuidance) {
     const mentionsAnyVehicle = vehicles.some((v) => displayText.includes(v.modelName));
-    const isStallingReply =
-      /お待ちください|お調べします|確認します/.test(displayText) &&
-      !displayText.includes('0287-36-6011') &&
-      !displayText.includes('見つかりません');
 
     if (mentionsAnyVehicle || isStallingReply) {
       displayText = NO_MATCH_GUIDANCE_DISPLAY;
