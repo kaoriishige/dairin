@@ -283,10 +283,17 @@ nearMatches: ${JSON.stringify(
 
     const speechText = normalizeTextForSpeech(rawSpeechText);
 
+    const nextActiveVehicleId =
+      recommendedVehicleIds.length > 0
+        ? recommendedVehicleIds[0]
+        : conversationPlan.nextActiveVehicleId;
+
     const updatedPreferences: CustomerPreferences = {
       ...mergedPrefs,
       ...(parsed.updatedPreferences ?? {}),
       budgetMaxYen: effectiveBudgetMax,
+      salesPhase: conversationPlan.nextSalesPhase,
+      activeVehicleId: nextActiveVehicleId,
       purpose: parsed.salesPurpose ?? mergedPrefs.purpose,
       requiredFeatures: Array.from(
         new Set([
@@ -302,6 +309,8 @@ nearMatches: ${JSON.stringify(
       recommendedVehicleIds,
       candidateCount: candidateVehicles.length,
       salesPurpose: updatedPreferences.purpose,
+      salesPhase: updatedPreferences.salesPhase,
+      activeVehicleId: updatedPreferences.activeVehicleId,
       updatedPreferences,
       characterState: recommendedVehicleIds.length > 0 ? 'introducing_vehicle' : 'speaking',
       modelUsed: model,

@@ -16,6 +16,14 @@ export type SalesPurpose =
   | 'other'
   | 'unknown';
 
+export type SalesPhase =
+  | 'greeting'
+  | 'hearing_condition'
+  | 'vehicle_proposed'
+  | 'vehicle_qa'
+  | 'service_qa'
+  | 'handoff_store';
+
 export type KnowledgeCategory =
   | '会社情報'
   | '店舗情報'
@@ -131,6 +139,8 @@ export interface CustomerPreferences {
   carYearForService?: string;
   mileageForService?: string;
   inspectionTiming?: string;
+  salesPhase?: SalesPhase;
+  activeVehicleId?: string | null;
 }
 
 export interface ChatMessage {

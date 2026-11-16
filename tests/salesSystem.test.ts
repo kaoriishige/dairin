@@ -287,5 +287,43 @@ describe('オートギャラリーダイリン AI営業システム 検証テス
     });
     expect(faqPlan.actionType).toBe('ANSWER_SERVICE_OR_FAQ');
     expect(faqPlan.allowVehicleRecommendation).toBe(false);
+    expect(faqPlan.nextSalesPhase).toBe('service_qa');
+  });
+
+  it('ステップ3（状態・フェーズ管理）：activeVehicleIdを引き継いで「それの距離は？」「総支払額は？」などの省略質問を解決できること', () => {
+    const proposedPrefs = {
+      purpose: 'used_car' as const,
+      budgetMaxYen: 1_000_000,
+      preferredCarType: '軽自動車',
+      requiredFeatures: [],
+      salesPhase: 'vehicle_proposed' as const,
+      activeVehicleId: 'veh-wagon-r-2017',
+    };
+
+    // 1. 「それの走行距離は？」と車名を省略しても activeVehicleId からワゴンRの質問として判定される
+    const detailPlan = buildConversationPlan({
+      userMessage: 'それの走行距離はどのくらいですか？',
+      prefs: proposedPrefs,
+      vehicles,
+      exactMatches: [vehicles.find((v) => v.id === 'veh-wagon-r-2017')!],
+      introducedVehicleIds: ['veh-wagon-r-2017'],
+    });
+    expect(detailPlan.nextSalesPhase).toBe('vehicle_qa');
+    expect(detailPlan.nextActiveVehicleId).toBe('veh-wagon-r-2017');
+    expect(detailPlan.instructionForLlm).toContain('ワゴンR');
+    expect(detailPlan.allowVehicleRecommendation).toBe(false);
+
+    // 2. 「総支払額はいくらですか？」と車名を省略しても handoff_store に遷移し、カードは重複提示しない
+    const totalPricePlan = buildConversationPlan({
+      userMessage: '総支払額はいくらですか？',
+      prefs: detailPlan.extractedPreferences,
+      vehicles,
+      exactMatches: [vehicles.find((v) => v.id === 'veh-wagon-r-2017')!],
+      introducedVehicleIds: ['veh-wagon-r-2017'],
+    });
+    expect(totalPricePlan.actionType).toBe('ANSWER_DECLINE_OR_CONTACT');
+    expect(totalPricePlan.nextSalesPhase).toBe('handoff_store');
+    expect(totalPricePlan.instructionForLlm).toContain('ワゴンR');
+    expect(totalPricePlan.allowVehicleRecommendation).toBe(false);
   });
 });
