@@ -48,13 +48,14 @@ function numberToJapaneseReading(num: number, isManUnit = false): string {
   }
 
   let remaining = Math.floor(num);
+  const hasHigherDigits = remaining >= 10000;
   let unitIdx = 0;
   const chunks: string[] = [];
 
   while (remaining > 0 && unitIdx < units.length) {
     const chunk = remaining % 10000;
     if (chunk > 0) {
-      const chunkStr = convertChunk(chunk, isManUnit || unitIdx > 0);
+      const chunkStr = convertChunk(chunk, isManUnit || unitIdx > 0 || hasHigherDigits);
       chunks.unshift(chunkStr + units[unitIdx]);
     }
     remaining = Math.floor(remaining / 10000);
@@ -182,6 +183,8 @@ const PRONUNCIATION_MAP: Array<[RegExp, string]> = [
   [/AI/g, 'エーアイ'],
 
   // 誤読されやすい自動車専門用語・難読漢字・助数詞のみ変換（一般的な漢字熟語は自然なアクセント維持のためそのまま残す）
+  [/お見積も?り/g, 'おみつもり'],
+  [/見積も?り/g, 'みつもり'],
   [/鈑金/g, 'ばんきん'],
   [/板金/g, 'ばんきん'],
   [/修復歴/g, 'しゅうふくれき'],

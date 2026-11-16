@@ -228,6 +228,12 @@ describe('オートギャラリーダイリン AI営業システム 検証テス
 
     // 助数詞の音便（「1分=いっぷん」「10分=じゅっぷん」「3本=さんぼん」「1000万円=いっせん万円」）が自然であること
     expect(normalizeTextForSpeech('1分と10分と3本と1000万円')).toBe('いっぷんとじゅっぷんとさんぼんといっせん万円');
+
+    // 1.1万円=いちまん いっせん円、お見積り=おみつもり に変換されること
+    const leaseText = normalizeTextForSpeech('月々1.1万円からのお見積りが可能です。');
+    expect(leaseText).toContain('いちまん いっせん円');
+    expect(leaseText).toContain('おみつもり');
+    expect(normalizeTextForSpeech('1000円')).toBe('せん円');
   });
 
   it('ステップ2（conversationPlanner）：プログラムが会話の行動計画を正確に決定すること', () => {
