@@ -172,6 +172,12 @@ const PRONUNCIATION_MAP: Array<[RegExp, string]> = [
   [/\bETC\b/gi, 'イーティーシー'],
   [/\bLINE\b/gi, 'ライン'],
   [/\bWEB\b/gi, 'ウェブ'],
+  [/\bVISA\b/gi, 'ビザ'],
+  [/\bMaster(?:card)?\b/gi, 'マスター'],
+  [/\bDH-2\b/gi, 'ディーエイチツー'],
+  [/\bDL-1\b/gi, 'ディーエルワン'],
+  [/5W-30/gi, 'ごダブリューさんじゅう'],
+  [/0W-20/gi, 'ぜろダブリューにじゅう'],
   [/AI営業/gi, 'エーアイ営業'],
   [/AI/g, 'エーアイ'],
 
@@ -234,6 +240,19 @@ export function normalizeTextForSpeech(rawText: string): string {
   text = text.replace(/〒/g, 'ゆうびんばんごう、');
   // 括弧内の補足は読点で自然に区切る
   text = text.replace(/[（(]([^）)]+)[）)]/g, '、$1、');
+  // 電話番号（例: 0287-39-5611）と郵便番号（例: 329-2712）を汎用的に1桁ずつ読みへ変換
+  const digitWords = ['ぜろ', 'いち', 'に', 'さん', 'よん', 'ご', 'ろく', 'なな', 'はち', 'きゅう'];
+  const toEachDigit = (s: string) =>
+    s
+      .split('')
+      .map((d) => digitWords[Number(d)] ?? d)
+      .join('');
+  text = text.replace(/\b(0\d{1,4})-(\d{1,4})-(\d{3,4})\b/g, (_, a, b, c) => {
+    return `${toEachDigit(a)}、${toEachDigit(b)}の、${toEachDigit(c)}`;
+  });
+  text = text.replace(/\b(\d{3})-(\d{4})\b/g, (_, a, b) => {
+    return `${toEachDigit(a)}の、${toEachDigit(b)}`;
+  });
   // 波線（〜 / ～）を「から」に変換
   text = text.replace(/(\d+(?:\.\d+)?)\s*[〜～~]\s*(\d+(?:\.\d+)?)/g, '$1から$2');
 
@@ -307,6 +326,8 @@ export function normalizeTextForSpeech(rawText: string): string {
     if (h === 9) return 'くじ';
     return `${numberToJapaneseReading(h)}じ`;
   });
+  // 時刻以外のコロンを自然な読点に
+  text = text.replace(/[:：]/g, '、');
 
   // 項目数・分・本・台・店舗
   text = text.replace(/(\d+)\s*項目/g, (_, n) => `${numberToJapaneseReading(parseInt(n, 10))}こうもく`);

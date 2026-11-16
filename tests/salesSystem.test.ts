@@ -326,4 +326,25 @@ describe('オートギャラリーダイリン AI営業システム 検証テス
     expect(totalPricePlan.instructionForLlm).toContain('ワゴンR');
     expect(totalPricePlan.allowVehicleRecommendation).toBe(false);
   });
+
+  it('ステップ4〜5（音声最終仕上げ＆新規公式知識RAGテスト）：4拠点電話番号・カードブランド・時刻が自然に読まれ、新規知識がRAG検索でヒットすること', () => {
+    // 4拠点の電話番号・営業時間・クレジットカードが半角数字/英字を残さず自然に変換される
+    const multiStore =
+      'ダイリン車検センター（0287-39-5611）やカーコンビニ倶楽部 ダイリン（0287-39-5911）では、9:00〜18:00でVISA・Masterが使えます。';
+    const speech = normalizeTextForSpeech(multiStore);
+    expect(speech).not.toMatch(/[0-9A-Za-z]/);
+    expect(speech).toContain('ぜろにはちなな、さんきゅうの、ごろくいちいち');
+    expect(speech).toContain('ぜろにはちなな、さんきゅうの、ごきゅういちいち');
+    expect(speech).toContain('くじからじゅうはちじ');
+    expect(speech).toContain('ビザ');
+    expect(speech).toContain('マスター');
+
+    // ステップ1で追加した公式FAQ・4拠点情報がRAG検索でヒットする
+    expect(searchKnowledgeEntries(knowledge, 'クレジットカード VISA で支払えますか？')[0]?.id).toBe(
+      'kn-faq-payment-reservation'
+    );
+    expect(searchKnowledgeEntries(knowledge, 'アップル西那須野店の電話番号は？')[0]?.id).toBe(
+      'kn-store-locations'
+    );
+  });
 });
