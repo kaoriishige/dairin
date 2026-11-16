@@ -14,6 +14,7 @@ export interface SalesPolicyInput {
   mergedPrefs: CustomerPreferences;
   parsed: ParsedChatOutput;
   exactMatches: Vehicle[];
+  introducedVehicleIds?: string[];
 }
 
 export interface SalesPolicyResult {
@@ -37,7 +38,7 @@ const NO_MATCH_GUIDANCE_SPEECH =
  * - 車両カード提示時の誘導文言（「下記の〇〇をご覧ください。」）の保証
  */
 export function enforceSalesPolicy(input: SalesPolicyInput): SalesPolicyResult {
-  const { userMessage, vehicles, mergedPrefs, parsed, exactMatches } = input;
+  const { userMessage, vehicles, mergedPrefs, parsed, exactMatches, introducedVehicleIds = [] } = input;
 
   const effectiveBudgetMax =
     mergedPrefs.budgetMaxYen ?? parsed.updatedPreferences?.budgetMaxYen ?? null;
@@ -90,13 +91,36 @@ export function enforceSalesPolicy(input: SalesPolicyInput): SalesPolicyResult {
     'お問い合わせありがとうございます。詳しくお伺いできますでしょうか。';
   let rawSpeechText = parsed.replySpeechText?.trim() || displayText;
 
+  // 「記載されていない」「お伝えすることができません」「店舗へご連絡」などの不可回答・店舗案内文脈では車両提案をしない
+  const isDeclineOrContactGuidance =
+    /申し訳ありませんが|記載されていない|お伝えすることができません|見つかりませんでした|直接ご連絡|直接お問い合わせ/.test(
+      displayText
+    );
+
+  if (isDeclineOrContactGuidance) {
+    recommendedVehicleIds = [];
+    displayText = displayText.replace(/\n?下記の[^。\n]+をご覧ください。?/g, '').trim();
+    rawSpeechText = rawSpeechText.replace(/\s*下記の、?[^。\n]+をご覧ください。?/g, '').trim();
+  }
+
+  // すでに紹介済みの車両に対する追加質問（支払総額・在庫・詳細質問など）では重複カードや「下記をご覧ください」を繰り返さない
+  const introducedSet = new Set(introducedVehicleIds);
+  const newlyIntroducedIds = recommendedVehicleIds.filter((id) => !introducedSet.has(id));
+  if (newlyIntroducedIds.length === 0 && recommendedVehicleIds.length > 0) {
+    recommendedVehicleIds = [];
+    displayText = displayText.replace(/\n?下記の[^。\n]+をご覧ください。?/g, '').trim();
+    rawSpeechText = rawSpeechText.replace(/\s*下記の、?[^。\n]+をご覧ください。?/g, '').trim();
+  } else {
+    recommendedVehicleIds = newlyIntroducedIds;
+  }
+
   const isPurchaseContext =
     !parsed.salesPurpose ||
     parsed.salesPurpose === 'used_car' ||
     parsed.salesPurpose === 'budget_search' ||
     parsed.salesPurpose === 'unknown';
 
-  if (hasAnyCondition && isPurchaseContext && recommendedVehicleIds.length === 0 && exactMatches.length === 0) {
+  if (hasAnyCondition && isPurchaseContext && recommendedVehicleIds.length === 0 && exactMatches.length === 0 && !isDeclineOrContactGuidance) {
     const mentionsAnyVehicle = vehicles.some((v) => displayText.includes(v.modelName));
     const isStallingReply =
       /お待ちください|お調べします|確認します/.test(displayText) &&
@@ -109,7 +133,7 @@ export function enforceSalesPolicy(input: SalesPolicyInput): SalesPolicyResult {
     }
   }
 
-  if (recommendedVehicleIds.length > 0) {
+  if (recommendedVehicleIds.length > 0 && !isDeclineOrContactGuidance) {
     const recVehicles = recommendedVehicleIds
       .map((id) => vehicleMap.get(id))
       .filter((v): v is Vehicle => Boolean(v));

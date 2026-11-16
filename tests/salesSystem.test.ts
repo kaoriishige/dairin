@@ -196,6 +196,23 @@ describe('オートギャラリーダイリン AI営業システム 検証テス
     expect(noMatch.recommendedVehicleIds).toEqual([]);
     expect(noMatch.displayText).toContain('見つかりませんでした');
     expect(noMatch.displayText).toContain('0287-36-6011');
+
+    // 4. 総支払額などHP未記載で店舗案内する回答や、すでに紹介済み車両の追加質問では「下記の〇〇をご覧ください」を付けないこと
+    const declineReply = enforceSalesPolicy({
+      userMessage: 'ワゴンRの総支払額はいくらですか？',
+      vehicles,
+      mergedPrefs: { purpose: 'used_car', preferredCarType: '軽自動車', requiredFeatures: [] },
+      parsed: {
+        replyDisplayText:
+          '申し訳ありませんが、総支払額についてはホームページに記載されていないため、オートギャラリーダイリン（電話：0287-36-6011）までご連絡ください。\n下記のスズキ ワゴンRをご覧ください。',
+        recommendedVehicleIds: ['veh-wagon-r-2017'],
+        salesPurpose: 'used_car',
+      },
+      exactMatches: [vehicles.find((v) => v.id === 'veh-wagon-r-2017')!],
+      introducedVehicleIds: ['veh-wagon-r-2017'],
+    });
+    expect(declineReply.recommendedVehicleIds).toEqual([]);
+    expect(declineReply.displayText).not.toContain('下記のスズキ ワゴンRをご覧ください');
   });
 
   it('音声変換品質保証：年式・走行距離・各種金額・電話番号の変換後に半角数字が残らないこと', () => {
