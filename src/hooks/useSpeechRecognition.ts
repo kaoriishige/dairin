@@ -274,8 +274,12 @@ export function useSpeechRecognition(): UseSpeechRecognitionResult {
         if (!options?.silentOnAutoError) {
           const name = err instanceof Error ? err.name : '';
           if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
+            const isAndroid =
+              typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
             setErrorMessage(
-              'マイクの使用が許可されていません。ブラウザの設定でマイクを許可するか、メール・LINE内ブラウザの場合は「Safariで開く」をお試しください。'
+              isAndroid
+                ? 'マイクの使用が許可されていません。アドレスバー左のアイコン（またはChromeの設定＞サイトの設定＞マイク）で許可してください。LINE・メール等のアプリ内ブラウザの場合は右上メニュー（︙）から「Chromeで開く」をお試しください。'
+                : 'マイクの使用が許可されていません。ブラウザの設定でマイクを許可するか、メール・LINE内ブラウザの場合は「Safariで開く」をお試しください。'
             );
           } else {
             setErrorMessage('マイクの起動に失敗しました。下の文字入力欄をご利用ください。');
@@ -294,6 +298,16 @@ export function useSpeechRecognition(): UseSpeechRecognitionResult {
       setInterimTranscript('');
       latestInterimRef.current = '';
       hasDispatchedFinalRef.current = false;
+
+      const isAndroid =
+        typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
+
+      // Android は Google アプリ側の音声認識権限や非同期フォールバック時のジェスチャ制限で
+      // SpeechRecognition が not-allowed になりやすいため、タップ直後に直接 MediaRecorder(/api/stt) を起動する
+      if ((!SpeechRecognitionCtor || isAndroid) && canRecordFallback) {
+        void startRecorderFallback(options);
+        return;
+      }
 
       if (!SpeechRecognitionCtor) {
         void startRecorderFallback(options);
