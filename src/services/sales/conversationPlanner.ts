@@ -127,12 +127,30 @@ export function buildConversationPlan(params: {
 
   // 4. 車検・オイル・タイヤ・買取・リース・FAQ（支払い方法・店舗・予約等）
   if (SERVICE_OR_FAQ_REGEX.test(userMessage) && !PURCHASE_INTENT_REGEX.test(userMessage)) {
+    const isInitialInspectionConsult =
+      /車検|点検/.test(userMessage) &&
+      !/軽自動車|普通車|自動二輪|バイク|1t|1\.5t|2t|いくら|料金|費用|価格|予約/.test(userMessage) &&
+      !mentionsVehicle;
+
+    if (isInitialInspectionConsult) {
+      return {
+        actionType: 'ANSWER_SERVICE_OR_FAQ',
+        nextSalesPhase: 'service_qa',
+        nextActiveVehicleId: null,
+        instructionForLlm:
+          '【行動指示：車検・点検の初回ヒアリング（中立確認）】お客様は車検・点検のご相談を始めた段階です。「お乗りのお車は軽自動車でしょうか？」のように特定の車種を絶対に決め打ち・断定せず、「かしこまりました！お乗りのお車の種類（軽自動車・普通車・二輪など）や、車検の時期はお決まりでしょうか？」のように中立的に伺ってください。recommendedVehicleIds は [] にしてください。',
+        preselectedVehicleIds: [],
+        allowVehicleRecommendation: false,
+        extractedPreferences: { ...extractedPreferences, salesPhase: 'service_qa', activeVehicleId: null },
+      };
+    }
+
     return {
       actionType: 'ANSWER_SERVICE_OR_FAQ',
       nextSalesPhase: 'service_qa',
       nextActiveVehicleId: currentActiveId,
       instructionForLlm:
-        '【行動指示：公式サービス・FAQの正確な案内】下記の公式会社情報・サービス情報・営業知識に記載されている事実のみを使って、人間らしく親切に回答してください。細かい金額の確定見積りや予約確定は店舗（0287-36-6011、車検センター 0287-39-5611、鈑金 0287-39-5911、買取アップル 0287-38-0544）へ案内してください。recommendedVehicleIds は [] にしてください。',
+        '【行動指示：公式サービス・FAQの正確な案内】下記の公式会社情報・サービス情報・営業知識に記載されている事実のみを使って、人間らしく親切に回答してください。お客様が言っていない車種を勝手に決め打ちしないでください。細かい金額の確定見積りや予約確定は店舗（0287-36-6011、車検センター 0287-39-5611、鈑金 0287-39-5911、買取アップル 0287-38-0544）へ案内してください。recommendedVehicleIds は [] にしてください。',
       preselectedVehicleIds: [],
       allowVehicleRecommendation: false,
       extractedPreferences: { ...extractedPreferences, salesPhase: 'service_qa', activeVehicleId: currentActiveId },

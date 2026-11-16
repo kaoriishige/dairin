@@ -346,5 +346,16 @@ describe('オートギャラリーダイリン AI営業システム 検証テス
     expect(searchKnowledgeEntries(knowledge, 'アップル西那須野店の電話番号は？')[0]?.id).toBe(
       'kn-store-locations'
     );
+
+    // 車検・点検の初回相談では特定車種（軽自動車など）を決め打ちせず中立確認指示を出すこと
+    const inspectionInitPlan = buildConversationPlan({
+      userMessage: '車検・点検について相談したいです。',
+      prefs: { purpose: 'inspection', requiredFeatures: [] },
+      vehicles,
+      exactMatches: [],
+      introducedVehicleIds: [],
+    });
+    expect(inspectionInitPlan.actionType).toBe('ANSWER_SERVICE_OR_FAQ');
+    expect(inspectionInitPlan.instructionForLlm).toContain('決め打ち・断定せず');
   });
 });
