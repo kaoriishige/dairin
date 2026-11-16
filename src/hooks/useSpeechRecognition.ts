@@ -147,15 +147,24 @@ export function useSpeechRecognition(): UseSpeechRecognitionResult {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         mediaStreamRef.current = stream;
 
-        const mimeCandidates = ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm'];
+        const isIos =
+          typeof navigator !== 'undefined' && /iPad|iPhone|iPod/i.test(navigator.userAgent);
+        const mimeCandidates = isIos
+          ? ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm']
+          : ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'];
         const chosenMime =
           mimeCandidates.find((m) =>
             typeof MediaRecorder.isTypeSupported === 'function' ? MediaRecorder.isTypeSupported(m) : false
           ) || '';
 
-        const recorder = chosenMime
-          ? new MediaRecorder(stream, { mimeType: chosenMime })
-          : new MediaRecorder(stream);
+        let recorder: MediaRecorder;
+        try {
+          recorder = chosenMime
+            ? new MediaRecorder(stream, { mimeType: chosenMime })
+            : new MediaRecorder(stream);
+        } catch {
+          recorder = new MediaRecorder(stream);
+        }
         recorderRef.current = recorder;
 
         const chunks: Blob[] = [];
@@ -218,6 +227,9 @@ export function useSpeechRecognition(): UseSpeechRecognitionResult {
             (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
           if (AudioCtx) {
             const ctx = new AudioCtx();
+            if (ctx.state === 'suspended') {
+              void ctx.resume().catch(() => {});
+            }
             const source = ctx.createMediaStreamSource(stream);
             const analyser = ctx.createAnalyser();
             analyser.fftSize = 512;
@@ -264,7 +276,7 @@ export function useSpeechRecognition(): UseSpeechRecognitionResult {
           }
         }, 15000);
 
-        recorder.start(250);
+        recorder.start();
         setIsListening(true);
         setInterimTranscript('聞いています…（話し終わると自動送信、またはマイクで停止）');
       } catch (err) {
