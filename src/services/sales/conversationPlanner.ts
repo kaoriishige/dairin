@@ -26,7 +26,7 @@ const UNLISTED_VEHICLE_DETAIL_REGEX =
   /支払総額|総支払額|乗り出し|諸費用|修復歴|事故歴|値引き|在庫|残って|売約|納期|ローン金利|審査/;
 
 const SERVICE_OR_FAQ_REGEX =
-  /車検|点検|オイル|タイヤ|買取|査定|リース|レンタカー|コーティング|保険|支払い|支払方法|クレジット|VISA|Master|現金|営業時間|定休日|住所|場所|どこ|予約|電話|アクセス|拠点|店舗/;
+  /車検|点検|オイル|タイヤ|買取|査定|リース|レンタカー|コーティング|保険|支払い|支払方法|クレジット|VISA|Master|現金|営業時間|定休日|お休み|休業日|住所|場所|どこ|予約|電話|アクセス|拠点|店舗/;
 
 const PURCHASE_INTENT_REGEX =
   /中古車|新車|車を探|車を買|購入|予算|軽自動車|普通車|スライドドア|ファミリー|おすすめ/;
@@ -139,6 +139,19 @@ export function buildConversationPlan(params: {
         nextActiveVehicleId: null,
         instructionForLlm:
           '【行動指示：車検・点検の初回ヒアリング（中立確認）】お客様は車検・点検のご相談を始めた段階です。「お乗りのお車は軽自動車でしょうか？」のように特定の車種を絶対に決め打ち・断定せず、「かしこまりました！お乗りのお車の種類（軽自動車・普通車・二輪など）や、車検の時期はお決まりでしょうか？」のように中立的に伺ってください。recommendedVehicleIds は [] にしてください。',
+        preselectedVehicleIds: [],
+        allowVehicleRecommendation: false,
+        extractedPreferences: { ...extractedPreferences, salesPhase: 'service_qa', activeVehicleId: null },
+      };
+    }
+
+    if (/定休日|お休み|休業日/.test(userMessage)) {
+      return {
+        actionType: 'ANSWER_SERVICE_OR_FAQ',
+        nextSalesPhase: 'service_qa',
+        nextActiveVehicleId: null,
+        instructionForLlm:
+          '【行動指示：定休日のご案内】定休日の曜日（水曜・木曜など）は絶対にAI側で答えず、必ず「定休日の案内は、ホームページをご覧になって確認してください。」と案内してください（画面表示用には https://www.jp-dairin.jp/ を案内しても構いません）。recommendedVehicleIds は [] にしてください。',
         preselectedVehicleIds: [],
         allowVehicleRecommendation: false,
         extractedPreferences: { ...extractedPreferences, salesPhase: 'service_qa', activeVehicleId: null },

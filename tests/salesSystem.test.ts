@@ -363,5 +363,16 @@ describe('オートギャラリーダイリン AI営業システム 検証テス
     });
     expect(inspectionInitPlan.actionType).toBe('ANSWER_SERVICE_OR_FAQ');
     expect(inspectionInitPlan.instructionForLlm).toContain('決め打ち・断定せず');
+
+    // 定休日の質問では曜日を答えずホームページ確認を案内する指示を出すこと
+    const holidayPlan = buildConversationPlan({
+      userMessage: '定休日はいつですか？',
+      prefs: { purpose: 'other', requiredFeatures: [] },
+      vehicles,
+      exactMatches: [],
+      introducedVehicleIds: [],
+    });
+    expect(holidayPlan.actionType).toBe('ANSWER_SERVICE_OR_FAQ');
+    expect(holidayPlan.instructionForLlm).toContain('ホームページをご覧になって確認してください');
   });
 });
