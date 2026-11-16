@@ -361,10 +361,13 @@ export const DemoPage: React.FC<DemoPageProps> = () => {
     setCurrentVowel('closed');
     setCharacterState('listening');
 
-    speech.startListening((transcript) => {
-      void handleSendMessage(transcript);
-    });
-  }, [handleSendMessage, speech]);
+    speech.startListening(
+      (transcript) => {
+        void handleSendMessage(transcript);
+      },
+      { passcode }
+    );
+  }, [handleSendMessage, passcode, speech]);
 
   const handleResetSession = useCallback(() => {
     playerRef.current?.stop();
