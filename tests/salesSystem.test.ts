@@ -62,6 +62,11 @@ describe('オートギャラリーダイリン AI営業システム 検証テス
     expect(speech).toContain('ばんきん');
     expect(speech).toContain('おしはらいそうがく');
 
+    // 1,000,000円などカンマが複数入る高額金額が正しくひらがな化されること
+    expect(normalizeTextForSpeech('価格は1,000,000円です')).toContain('ひゃくまんえん');
+    expect(normalizeTextForSpeech('支払総額は１，５００，０００円です')).toContain('ひゃくごじゅうまんえん');
+    expect(normalizeTextForSpeech('2,345,678円')).toContain('にひゃくさんじゅうよんまんごせんろっぴゃくななじゅうはちえん');
+
     const chunks = splitIntoSpeechChunks(speech, 40);
     expect(chunks.length).toBeGreaterThanOrEqual(1);
   });

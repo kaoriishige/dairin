@@ -313,8 +313,8 @@ export function normalizeTextForSpeech(rawText: string): string {
   // 波線（〜 / ～）を「から」に変換
   text = text.replace(/(\d+(?:\.\d+)?)\s*[〜～~]\s*(\d+(?:\.\d+)?)/g, '$1から$2');
 
-  // 桁区切りカンマ付き数字を統合（例: 49,360 -> 49360）
-  text = text.replace(/(\d{1,3}),(\d{3})/g, '$1$2');
+  // 桁区切りカンマ付き数字を統合（例: 49,360 -> 49360, 1,000,000 -> 1000000）
+  text = text.replace(/\d{1,3}(?:,\d{3})+/g, (match) => match.replace(/,/g, ''));
 
   // 小数付き万円（例: 82.5万円 -> 、はちじゅうにまんごせんえん、、1.1万円 -> 、いちまんいっせんえん、）
   text = text.replace(/(\d+)\.(\d+)\s*万円/g, (_, intPart, decPart) => {
@@ -433,7 +433,7 @@ export function normalizeTextForGoogleCloudTts(rawText: string): string {
   text = text.replace(/[*_`#>|]/g, '');
   text = text.replace(/^[\s・\-•]+/gm, '');
   text = text.replace(/(\d+)\s*[〜～~]\s*(\d+)/g, '$1から$2');
-  text = text.replace(/(\d{1,3}),(\d{3})/g, '$1$2');
+  text = text.replace(/\d{1,3}(?:,\d{3})+/g, (match) => match.replace(/,/g, ''));
   text = text.replace(/(\d+)\.(\d+)\s*万円/g, (_, intPart, decPart) => {
     const sub = parseInt(decPart, 10);
     return sub > 0 ? `${intPart}万${sub}千円` : `${intPart}万円`;
