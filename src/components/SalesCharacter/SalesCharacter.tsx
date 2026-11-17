@@ -179,11 +179,11 @@ export const SalesCharacter: React.FC<SalesCharacterProps> = ({
 
       {/* キャラクター本体表示エリア */}
       <div
-        className={`relative w-full max-w-[230px] sm:max-w-[290px] md:max-w-[350px] aspect-[4/4.6] rounded-2xl overflow-hidden bg-white border border-blue-100 ring-4 transition-all duration-300 ${cfg.ringClass}`}
+        className={`relative w-full max-w-[230px] sm:max-w-[290px] md:max-w-[350px] aspect-[42/51] rounded-2xl overflow-hidden bg-white border border-blue-100 ring-4 transition-all duration-300 ${cfg.ringClass}`}
       >
         {/* ベース静止画（口を閉じた正面画像） */}
         <img
-          src="/images/dairin_ai_sales_character.png?v=4"
+          src="/images/dairin_ai_sales_character.png?v=7"
           alt="ダイリン AI営業アシスタント（女性営業キャラクター）"
           className="absolute inset-0 w-full h-full object-contain object-bottom select-none pointer-events-none"
           draggable={false}
@@ -192,7 +192,7 @@ export const SalesCharacter: React.FC<SalesCharacterProps> = ({
         {/* ① 待機・聞き取り中ループ動画（口を閉じてまばたき・呼吸） */}
         <video
           ref={idleVideoRef}
-          src="/videos/character_idle.mp4?v=4"
+          src="/videos/character_idle.mp4?v=7"
           autoPlay
           loop
           muted
@@ -210,7 +210,7 @@ export const SalesCharacter: React.FC<SalesCharacterProps> = ({
         {/* ② 発話中ループ動画（音声が流れている間だけ口を開閉） */}
         <video
           ref={speakingVideoRef}
-          src="/videos/character_speaking.mp4?v=6"
+          src="/videos/character_speaking.mp4?v=7"
           loop
           muted
           playsInline
