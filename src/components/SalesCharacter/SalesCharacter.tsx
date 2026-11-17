@@ -179,7 +179,7 @@ export const SalesCharacter: React.FC<SalesCharacterProps> = ({
 
       {/* キャラクター本体表示エリア */}
       <div
-        className={`relative w-full max-w-[230px] sm:max-w-[290px] md:max-w-[350px] aspect-[4/4.1] rounded-2xl overflow-hidden bg-white border border-blue-100 ring-4 transition-all duration-300 ${cfg.ringClass}`}
+        className={`relative w-full max-w-[230px] sm:max-w-[290px] md:max-w-[350px] aspect-[4/4.6] rounded-2xl overflow-hidden bg-white border border-blue-100 ring-4 transition-all duration-300 ${cfg.ringClass}`}
       >
         {/* ベース静止画（口を閉じた正面画像） */}
         <img
