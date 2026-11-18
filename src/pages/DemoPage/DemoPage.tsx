@@ -150,6 +150,12 @@ export const DemoPage: React.FC<DemoPageProps> = () => {
     };
   }, [loadPublicData, passcode]);
 
+  useEffect(() => {
+    if (ttsEnabled && !passcodeRequired && !sessionStarted) {
+      playerRef.current?.prefetch(INITIAL_GREETING_SPEECH, passcode, voiceChoice);
+    }
+  }, [passcode, passcodeRequired, sessionStarted, ttsEnabled, voiceChoice]);
+
   const playAssistantVoice = useCallback(
     async (
       speechText: string,

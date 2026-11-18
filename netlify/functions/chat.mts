@@ -145,7 +145,7 @@ ${salesManualData.manuals
   .join('\n')}
 
 【最優先ルール】
-1. お客様の話を正確に理解し、自然な日本語の話し言葉で短く会話する（1回の回答は2〜4文、原則120〜200文字程度）。
+1. お客様の話を正確に理解し、自然な日本語の話し言葉でテンポよく簡潔に会話する（1回の回答は1〜3文、原則60〜130文字程度）。
 2. 質問を一度に大量に並べない。原則として1回につき質問は1つまで。
 3. お客様がすでに伝えた条件（予算・車種・用途・人数など）は絶対に聞き直さない。
 4. 【厳守・最重要】下記に提供されたオートギャラリーダイリン公式ホームページのデータのみを事実として案内すること。ホームページに記載がない情報（未掲載の車両・詳細な装備・支払総額・値引き・具体的な買取査定額・修理金額・ローン金利・納期・現在の在庫有無など）や分からない質問については、AIが推測や一般論で勝手に答えることを一切禁止する。分からない情報・ホームページに記載がない情報は、必ず「ホームページ上に記載がないため、お手数ですがオートギャラリーダイリン（電話：0287-36-6011、または公式LINE・WEBお問い合わせフォーム）まで直接ご連絡・ご確認ください」と案内すること。
@@ -218,27 +218,16 @@ nearMatches: ${JSON.stringify(
 
 【出力JSONフォーマット（厳守）】
 {
-  "replyDisplayText": "画面に表示する営業回答文（通常の読みやすい漢字かな交じり文）",
-  "replySpeechText": "音声読み上げ用の自然な日本語文（URLや記号は含めず、自然な抑揚で読める漢字かな交じり文）",
+  "replyDisplayText": "画面表示および音声読み上げ兼用の自然な日本語文（URL・記号は極力避け、年式・距離・金額は2017年・29,000km・82.5万円など算用数字で簡潔に記述）",
   "recommendedVehicleIds": ["今回紹介する車両ID（なければ空配列）"],
-  "salesPurpose": "used_car | new_car | budget_search | inspection | buyback | car_lease | body_paint | other | unknown",
-  "updatedPreferences": {
-    "purpose": "...",
-    "budgetMaxYen": 数値またはnull,
-    "preferredCarType": "軽自動車 | 普通車 | null",
-    "preferredMaker": "メーカー名またはnull",
-    "usagePurpose": "用途またはnull",
-    "passengerCount": 数値またはnull,
-    "requiredFeatures": ["希望装備"],
-    "purchaseTiming": "時期またはnull"
-  }
+  "salesPurpose": "used_car | new_car | budget_search | inspection | buyback | car_lease | body_paint | other | unknown"
 }
 `.trim();
 
     const openai = new OpenAI({ apiKey: openaiKey });
     const model = getEnv('OPENAI_MODEL', 'gpt-4o-mini');
 
-    const recentHistory = (body.history ?? []).slice(-10).map((m) => ({
+    const recentHistory = (body.history ?? []).slice(-6).map((m) => ({
       role: m.role === 'user' ? ('user' as const) : ('assistant' as const),
       content: m.displayText,
     }));
@@ -246,7 +235,7 @@ nearMatches: ${JSON.stringify(
     const completion = await openai.chat.completions.create({
       model,
       temperature: 0.1,
-      max_tokens: 650,
+      max_tokens: 300,
       response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: systemPrompt },

@@ -248,7 +248,7 @@ export function useSpeechRecognition(): UseSpeechRecognitionResult {
               if (maxDiff > 6) {
                 heardSpeech = true;
                 lastSoundAt = Date.now();
-              } else if (heardSpeech && Date.now() - lastSoundAt > 1600) {
+              } else if (heardSpeech && Date.now() - lastSoundAt > 950) {
                 try {
                   recorder.stop();
                 } catch {

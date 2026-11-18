@@ -24,6 +24,14 @@ async function readJsonFile<T>(relativePath: string): Promise<T> {
   throw new Error(`データファイルが見つかりません: ${relativePath}`);
 }
 
+let cachedData: {
+  company: CompanyInfo;
+  vehicles: Vehicle[];
+  services: ServiceInfo[];
+  knowledgeEntries: KnowledgeEntry[];
+  discrepancies: DiscrepancyItem[];
+} | null = null;
+
 export async function loadAllKnowledgeData(): Promise<{
   company: CompanyInfo;
   vehicles: Vehicle[];
@@ -31,6 +39,7 @@ export async function loadAllKnowledgeData(): Promise<{
   knowledgeEntries: KnowledgeEntry[];
   discrepancies: DiscrepancyItem[];
 }> {
+  if (cachedData) return cachedData;
   const [company, vehicles, services, knowledgeEntries, discrepancies] = await Promise.all([
     readJsonFile<CompanyInfo>('data/knowledge/company.json'),
     readJsonFile<Vehicle[]>('data/vehicles/vehicles.json'),
@@ -39,5 +48,6 @@ export async function loadAllKnowledgeData(): Promise<{
     readJsonFile<DiscrepancyItem[]>('data/knowledge/discrepancies.json'),
   ]);
 
-  return { company, vehicles, services, knowledgeEntries, discrepancies };
+  cachedData = { company, vehicles, services, knowledgeEntries, discrepancies };
+  return cachedData;
 }

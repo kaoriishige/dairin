@@ -87,6 +87,49 @@ export class ElevenLabsStreamingPlayer {
   private voiceChoice: FemaleVoiceChoice = 'cartesia-suzuka-bright';
   private isPlayingFlag = false;
   private playbackToken = 0;
+  private ttsCache = new Map<string, Blob>();
+
+  private async fetchTtsBlob(
+    chunk: string,
+    activeVoice: FemaleVoiceChoice,
+    passcode: string,
+    signal?: AbortSignal
+  ): Promise<Blob> {
+    const cacheKey = `${activeVoice}::${chunk}`;
+    const cached = this.ttsCache.get(cacheKey);
+    if (cached) return cached;
+
+    const res = await fetch('/api/tts', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(passcode ? { 'x-demo-passcode': passcode } : {}),
+      },
+      body: JSON.stringify({ text: chunk, voice: activeVoice }),
+      signal,
+    });
+    if (!res.ok) {
+      const errData = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(
+        errData.error || '音声合成が利用できないため、文字チャットで継続します。'
+      );
+    }
+    const blob = await res.blob();
+    if (this.ttsCache.size >= 12) {
+      const firstKey = this.ttsCache.keys().next().value;
+      if (firstKey) this.ttsCache.delete(firstKey);
+    }
+    this.ttsCache.set(cacheKey, blob);
+    return blob;
+  }
+
+  public prefetch(text: string, passcode: string, overrideVoice?: FemaleVoiceChoice) {
+    const activeVoice = overrideVoice || this.voiceChoice;
+    const chunks = splitIntoSpeechChunks(text, 55);
+    for (const chunk of chunks) {
+      void this.fetchTtsBlob(chunk, activeVoice, passcode).catch(() => {});
+    }
+  }
 
   public setVoiceChoice(choice: FemaleVoiceChoice) {
     this.voiceChoice = choice;
@@ -346,7 +389,7 @@ export class ElevenLabsStreamingPlayer {
     const activeVoice = overrideVoice || this.voiceChoice;
 
     const myToken = this.playbackToken;
-    const chunks = splitIntoSpeechChunks(text, 320);
+    const chunks = splitIntoSpeechChunks(text, 55);
     if (chunks.length === 0) {
       callbacks.onEnd?.();
       return false;
@@ -356,24 +399,9 @@ export class ElevenLabsStreamingPlayer {
     const signal = this.abortController.signal;
 
     try {
-      const chunkBlobPromises = chunks.map(async (chunk) => {
-        const res = await fetch('/api/tts', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(passcode ? { 'x-demo-passcode': passcode } : {}),
-          },
-          body: JSON.stringify({ text: chunk, voice: activeVoice }),
-          signal,
-        });
-        if (!res.ok) {
-          const errData = (await res.json().catch(() => ({}))) as { error?: string };
-          throw new Error(
-            errData.error || '音声合成が利用できないため、文字チャットで継続します。'
-          );
-        }
-        return res.blob();
-      });
+      const chunkBlobPromises = chunks.map((chunk) =>
+        this.fetchTtsBlob(chunk, activeVoice, passcode, signal)
+      );
 
       let startedCallbackFired = false;
 
